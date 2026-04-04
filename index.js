@@ -73,11 +73,13 @@ app.use(session({
 
 // Flash messages middleware (from boilerplate)
 app.use(function(req, res, next){
-  var msgs = req.session.messages || [];
+  var msgs = req.session && req.session.messages ? req.session.messages : [];
   res.locals.messages = msgs;
   res.locals.hasMessages = !! msgs.length;
   next();
-  req.session.messages = [];
+  if (req.session) {
+    req.session.messages = [];
+  }
 });
 
 // Health check endpoint

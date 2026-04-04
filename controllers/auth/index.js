@@ -16,6 +16,10 @@ exports.router = router;
 
 // ─── Email helper ───
 
+function canSendEmail() {
+  return !!(env.email.user && env.email.pass);
+}
+
 function createTransporter() {
   return nodemailer.createTransport({
     host: env.email.host,
@@ -27,30 +31,46 @@ function createTransporter() {
   });
 }
 
-function sendVerificationEmail(email, token) {
+function sendEmailWithFallback(mailOptions, fallbackLink, logLabel) {
+  if (!canSendEmail()) {
+    console.log(logLabel + ': ' + fallbackLink);
+    return Promise.resolve({
+      sent: false,
+      previewLink: fallbackLink
+    });
+  }
+
   var transporter = createTransporter();
+  return transporter.sendMail(mailOptions).then(function(info) {
+    return {
+      sent: true,
+      previewLink: nodemailer.getTestMessageUrl(info) || null
+    };
+  });
+}
+
+function sendVerificationEmail(email, token) {
   var link = env.baseUrl + '/api/auth/verify-email?token=' + token;
-  return transporter.sendMail({
+  return sendEmailWithFallback({
     from: env.email.from,
     to: email,
     subject: 'Verify your Eastminster Alumni account',
     html: '<p>Welcome! Please verify your email by clicking the link below:</p>' +
           '<p><a href="' + link + '">' + link + '</a></p>' +
           '<p>This link expires in 24 hours.</p>'
-  });
+  }, link, 'Verification link');
 }
 
 function sendPasswordResetEmail(email, token) {
-  var transporter = createTransporter();
   var link = env.baseUrl + '/#reset-password?token=' + token;
-  return transporter.sendMail({
+  return sendEmailWithFallback({
     from: env.email.from,
     to: email,
     subject: 'Reset your Eastminster Alumni password',
     html: '<p>You requested a password reset. Click the link below (expires in 1 hour):</p>' +
           '<p><a href="' + link + '">' + link + '</a></p>' +
           '<p>If you did not request this, please ignore this email.</p>'
-  });
+  }, link, 'Password reset link');
 }
 
 // ─── Routes ───
@@ -58,6 +78,33 @@ function sendPasswordResetEmail(email, token) {
 // GET /api/auth/health
 router.get('/health', function(req, res) {
   res.json({ status: 'ok' });
+});
+
+// GET /api/auth/me
+router.get('/me', function(req, res) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ success: false, message: 'Not signed in' });
+  }
+
+  User.findByPk(req.session.userId)
+    .then(function(user) {
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Session is no longer valid' });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          role: user.role
+        }
+      });
+    })
+    .catch(function(err) {
+      console.error('Get current user error:', err);
+      res.status(500).json({ success: false, message: 'Failed to load session' });
+    });
 });
 
 // POST /api/auth/register
@@ -91,13 +138,27 @@ router.post('/register', registerRules, validate, function(req, res) {
           firstName: firstName,
           lastName: lastName
         }).then(function() {
-          return sendVerificationEmail(email, token).catch(function(err) {
-            console.error('Email send failed:', err.message);
-          });
-        }).then(function() {
-          res.status(201).json({
+          return sendVerificationEmail(email, token);
+        }).then(function(emailResult) {
+          var response = {
             success: true,
             message: 'Registration successful! Please check your email to verify your account.'
+          };
+
+          if (!emailResult.sent) {
+            response.message = 'Registration successful! Email delivery is not configured, so use the verification link returned below.';
+            response.verificationLink = emailResult.previewLink;
+          } else if (emailResult.previewLink) {
+            response.emailPreviewUrl = emailResult.previewLink;
+          }
+
+          res.status(201).json(response);
+        }).catch(function(err) {
+          console.error('Email send failed:', err.message);
+          res.status(201).json({
+            success: true,
+            message: 'Registration successful, but sending the verification email failed.',
+            verificationLink: env.baseUrl + '/api/auth/verify-email?token=' + token
           });
         });
       });
@@ -218,11 +279,23 @@ router.post('/forgot-password', function(req, res) {
         resetPasswordToken: token,
         resetPasswordTokenExpiry: expiry
       }).then(function() {
-        return sendPasswordResetEmail(email, token).catch(function(err) {
-          console.error('Password reset email failed:', err.message);
+        return sendPasswordResetEmail(email, token);
+      }).then(function(emailResult) {
+        var response = { success: true, message: genericResponse.message };
+        if (!emailResult.sent) {
+          response.message = 'Email delivery is not configured, so use the reset link returned below.';
+          response.resetLink = emailResult.previewLink;
+        } else if (emailResult.previewLink) {
+          response.emailPreviewUrl = emailResult.previewLink;
+        }
+        res.json(response);
+      }).catch(function(err) {
+        console.error('Password reset email failed:', err.message);
+        res.json({
+          success: true,
+          message: 'Password reset requested, but sending the email failed.',
+          resetLink: env.baseUrl + '/#reset-password?token=' + token
         });
-      }).then(function() {
-        res.json(genericResponse);
       });
     })
     .catch(function(err) {

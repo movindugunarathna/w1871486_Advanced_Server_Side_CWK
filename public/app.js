@@ -25,6 +25,17 @@
     window.scrollTo(0, 0);
   }
 
+  function showLinkMessage(msg, type, link, label) {
+    if (!link) {
+      showMessage(msg, type);
+      return;
+    }
+    messageEl.className = 'alert alert-' + (type || 'info');
+    messageEl.innerHTML = escapeHtml(msg) + '<br><a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">' + escapeHtml(label || link) + '</a>';
+    messageEl.classList.remove('d-none');
+    window.scrollTo(0, 0);
+  }
+
   function api(path, options) {
     options = options || {};
     options.headers = options.headers || {};
@@ -50,6 +61,18 @@
     document.getElementById('nav-alumnus').classList.toggle('d-none', !currentUser || currentUser.role !== 'alumnus');
     document.getElementById('nav-developer').classList.toggle('d-none', !currentUser || currentUser.role !== 'developer');
     document.getElementById('nav-email').textContent = currentUser ? currentUser.email + ' (' + currentUser.role + ')' : '';
+  }
+
+  function restoreSession() {
+    return api('/api/auth/me').then(function (data) {
+      currentUser = data.data || null;
+      updateNav();
+      return currentUser;
+    }).catch(function () {
+      currentUser = null;
+      updateNav();
+      return null;
+    });
   }
 
   // ─── Auth Pages ───
@@ -117,7 +140,12 @@
           password: form.password.value
         }
       }).then(function (data) {
-        showMessage(data.message || 'Registration successful! Check your email to verify.', 'success');
+        showLinkMessage(
+          data.message || 'Registration successful! Check your email to verify.',
+          'success',
+          data.verificationLink || data.emailPreviewUrl,
+          data.verificationLink ? 'Verify email now' : 'Open email preview'
+        );
         location.hash = '#login';
       }).catch(function (err) { showMessage(err.message, 'danger'); });
     });
@@ -142,7 +170,12 @@
         method: 'POST',
         body: { email: e.target.email.value }
       }).then(function (data) {
-        showMessage(data.message || 'If that email exists, a reset link has been sent.', 'success');
+        showLinkMessage(
+          data.message || 'If that email exists, a reset link has been sent.',
+          'success',
+          data.resetLink || data.emailPreviewUrl,
+          data.resetLink ? 'Open reset form' : 'Open email preview'
+        );
       }).catch(function (err) { showMessage(err.message, 'danger'); });
     });
   }
@@ -786,6 +819,7 @@
   // ─── Init ───
 
   window.addEventListener('hashchange', route);
-  updateNav();
-  route();
+  restoreSession().then(function () {
+    route();
+  });
 })();
