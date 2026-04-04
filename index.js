@@ -15,7 +15,6 @@ var swaggerUi = require('swagger-ui-express');
 var swaggerSpec = require('./swagger/swagger');
 
 var { sequelize } = require('./models');
-var { initializeDatabase } = require('./utils/dbInit');
 
 var app = module.exports = express();
 
@@ -103,23 +102,11 @@ app.use(function(req, res, next){
   res.status(404).render('404', { url: req.originalUrl });
 });
 
-// Start server with DB initialization and sync
+// Start server with DB sync
 if (!module.parent) {
   var PORT = process.env.PORT || 5000;
 
-  // Initialize database (create if doesn't exist)
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'w1871486_alumni_influencers'
-  };
-
-  initializeDatabase(dbConfig)
-    .then(function() {
-      return sequelize.authenticate();
-    })
+  sequelize.authenticate()
     .then(function() {
       console.log('MySQL connected via XAMPP');
       return sequelize.sync();
@@ -131,6 +118,5 @@ if (!module.parent) {
     })
     .catch(function(err) {
       console.error('Unable to connect to database:', err);
-      process.exit(1);
     });
 }

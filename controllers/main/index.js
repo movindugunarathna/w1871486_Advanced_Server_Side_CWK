@@ -1,6 +1,8 @@
 'use strict'
 
-// Landing page — redirects to API docs
+var path = require('path');
+
+// Landing page — serves the client-side SPA (from boilerplate client-side pattern)
 exports.index = function(req, res) {
-  res.redirect('/api-docs');
+  res.sendFile(path.join(__dirname, '../../public/index.html'));
 };

@@ -1,14 +1,36 @@
+/* Base styles (from boilerplate) */
 body {
-  padding: 50px;
+  padding-top: 0;
   font: 16px "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
-a {
-  color: #107aff;
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
 }
 h1 a {
   font-size: 16px;
+}
+
+/* Cards */
+.card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Badges in tables */
+.table .badge {
+  font-size: 0.8em;
+}
+
+/* Pre blocks for JSON display */
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 0.85em;
+}
+
+/* Key display */
+.user-select-all {
+  user-select: all;
+  word-break: break-all;
+}
+
+/* Alert transitions */
+#message {
+  transition: opacity 0.3s;
 }
