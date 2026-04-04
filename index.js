@@ -15,6 +15,7 @@ var swaggerUi = require('swagger-ui-express');
 var swaggerSpec = require('./swagger/swagger');
 
 var { sequelize } = require('./models');
+var scheduler = require('./utils/scheduler');
 
 var app = module.exports = express();
 
@@ -49,13 +50,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 
-// Session store (XAMPP MySQL)
+// Session store (XAMPP MySQL) — must use the same database as Sequelize (see config/db.js).
 var sessionStore = new MySQLStore({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'alumni_influencers'
+  database: sequelize.config.database,
+  // Keep server-side session expiry aligned with the cookie maxAge (inactivity timeout).
+  expiration: 30 * 60 * 1000 // 30 minutes
 });
 
 app.use(session({
@@ -63,6 +66,8 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'alumni-secret-change-me',
   resave: false,
   saveUninitialized: false,
+  // Extend the session cookie expiry on activity (inactivity timeout behaviour).
+  rolling: true,
   cookie: {
     maxAge: 30 * 60 * 1000, // 30 minutes
     httpOnly: true,
@@ -115,6 +120,8 @@ if (!module.parent) {
     })
     .then(function() {
       console.log('Database tables synced');
+      // Start background scheduler jobs (winner selection, monthly resets).
+      scheduler.start();
       app.listen(PORT);
       console.log('Express started on port ' + PORT);
     })

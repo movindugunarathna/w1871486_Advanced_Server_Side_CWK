@@ -478,6 +478,7 @@
       var slot = results[0];
       var monthly = results[1];
       var history = results[2];
+      var currentBid = slot && slot.data ? slot.data.currentUserBid : null;
 
       var html = '<h2>Bidding Dashboard</h2>';
 
@@ -489,7 +490,7 @@
           '<p>Bidding: ' + (s.biddingOpen ? '<span class="badge bg-success">Open</span>' : '<span class="badge bg-danger">Closed</span>') + '</p>' +
           '<p>Total bids: ' + (s.totalBids || 0) + '</p>';
         if (s.currentUserBid) {
-          html += '<p>Your bid: <strong>' + s.currentUserBid.amount + '</strong> (' + s.currentUserBid.status + ')</p>';
+          html += '<p>Your bid status: <span class="badge bg-info">' + s.currentUserBid.status + '</span></p>';
         }
       } else {
         html += '<p class="text-muted">Could not load slot info.</p>';
@@ -523,10 +524,9 @@
         '<h5>Bid History</h5>';
       if (history && history.data && history.data.length > 0) {
         html += '<table class="table table-sm"><thead><tr>' +
-          '<th>Date</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+          '<th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
         history.data.forEach(function (bid) {
           html += '<tr><td>' + escapeHtml(bid.bidDate) + '</td>' +
-            '<td>' + bid.amount + '</td>' +
             '<td><span class="badge bg-' + bidStatusColor(bid.status) + '">' + bid.status + '</span></td>' +
             '<td>';
           if (bid.status === 'active') {
@@ -546,10 +546,21 @@
       // Place bid handler
       document.getElementById('form-bid').addEventListener('submit', function (e) {
         e.preventDefault();
-        api('/api/bidding/bid', {
-          method: 'POST',
-          body: { amount: parseFloat(e.target.amount.value) }
-        }).then(function (data) {
+        var bidAmount = parseFloat(e.target.amount.value);
+        var bidPromise = null;
+        // Increase-only update: if we already have an active bid, use PUT.
+        if (currentBid && currentBid.status === 'active' && currentBid.bidId) {
+          bidPromise = api('/api/bidding/bid/' + currentBid.bidId, {
+            method: 'PUT',
+            body: { amount: bidAmount }
+          });
+        } else {
+          bidPromise = api('/api/bidding/bid', {
+            method: 'POST',
+            body: { amount: bidAmount }
+          });
+        }
+        bidPromise.then(function (data) {
           showMessage(data.message || 'Bid placed!', 'success');
           renderBidding();
         }).catch(function (err) { showMessage(err.message, 'danger'); });
@@ -561,7 +572,7 @@
           var bidId = this.getAttribute('data-id');
           api('/api/bidding/bid/' + bidId + '/status').then(function (data) {
             var d = data.data || data;
-            showMessage('Bid ' + bidId + ': ' + d.position + ' (Amount: ' + d.amount + ')', 'info');
+            showMessage('Bid ' + bidId + ': ' + d.position, 'info');
           }).catch(function (err) { showMessage(err.message, 'danger'); });
         });
       });

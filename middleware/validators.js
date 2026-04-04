@@ -86,3 +86,11 @@ exports.forgotPasswordRules = [
     .trim()
     .isEmail().withMessage('Valid email is required')
 ];
+
+// API Key creation validation
+exports.apiKeyCreateRules = [
+  body('name')
+    .trim()
+    .notEmpty().withMessage('Key label is required')
+    .escape()
+];

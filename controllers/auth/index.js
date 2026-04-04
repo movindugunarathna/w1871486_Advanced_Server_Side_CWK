@@ -10,6 +10,7 @@ var { User, Profile, sequelize } = require('../../models');
 var { registerRules, loginRules, forgotPasswordRules, resetPasswordRules, validate } = require('../../middleware/validators');
 var env = require('../../config/env');
 var { forgotPasswordLimiter } = require('../../middleware/rateLimiter');
+var { isAuthenticated } = require('../../middleware/auth');
 
 exports.name = 'auth';
 exports.prefix = '/api/auth';
@@ -141,6 +142,7 @@ router.post('/register', registerRules, validate, function(req, res) {
       }
 
       var token = crypto.randomBytes(32).toString('hex');
+      var hashedVerificationToken = hashResetToken(token); // same sha256 strategy as password reset
       var expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       return bcrypt.hash(password, 12).then(function(hashedPassword) {
@@ -149,7 +151,8 @@ router.post('/register', registerRules, validate, function(req, res) {
           password: hashedPassword,
           role: 'alumnus',
           isVerified: false,
-          verificationToken: token,
+          // Persist only the hashed token for security.
+          verificationToken: hashedVerificationToken,
           verificationTokenExpiry: expiry
         });
       }).then(function(user) {
@@ -197,7 +200,9 @@ router.get('/verify-email', function(req, res) {
     return res.status(400).json({ success: false, message: 'Verification token is required' });
   }
 
-  User.findOne({ where: { verificationToken: token } })
+  var hashedVerificationToken = hashResetToken(token);
+
+  User.findOne({ where: { verificationToken: hashedVerificationToken } })
     .then(function(user) {
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
@@ -267,7 +272,7 @@ router.post('/login', loginRules, validate, function(req, res) {
 });
 
 // POST /api/auth/logout
-router.post('/logout', function(req, res) {
+router.post('/logout', isAuthenticated, function(req, res) {
   req.session.destroy(function(err) {
     if (err) {
       console.error('Logout error:', err);
@@ -341,7 +346,14 @@ router.post('/reset-password', resetPasswordRules, validate, function(req, res) 
 
   var hashedToken = hashResetToken(token);
 
+  // Primary lookup: hashed token (secure storage).
+  // Backward compatibility: if an older account still has a plaintext reset token
+  // in `resetPasswordToken`, allow reset to complete.
   User.findOne({ where: { resetPasswordToken: hashedToken } })
+    .then(function(user) {
+      if (user) return user;
+      return User.findOne({ where: { resetPasswordToken: token } });
+    })
     .then(function(user) {
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
