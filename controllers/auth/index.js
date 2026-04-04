@@ -6,7 +6,7 @@ var bcrypt = require('bcryptjs');
 var crypto = require('crypto');
 var nodemailer = require('nodemailer');
 
-var { User, Profile } = require('../../models');
+var { User, Profile, sequelize } = require('../../models');
 var { registerRules, loginRules, resetPasswordRules, validate } = require('../../middleware/validators');
 var env = require('../../config/env');
 
@@ -71,6 +71,22 @@ function sendPasswordResetEmail(email, token) {
           '<p><a href="' + link + '">' + link + '</a></p>' +
           '<p>If you did not request this, please ignore this email.</p>'
   }, link, 'Password reset link');
+}
+
+function hashResetToken(token) {
+  // Store only a hashed reset token in the database (do not persist the raw token).
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function invalidateUserSessions(userId) {
+  // express-mysql-session stores the session object as JSON in the `data` column.
+  // We delete any session whose stored JSON contains the matching userId.
+  var pattern1 = '%"userId":' + userId + '%';
+  var pattern2 = '%"userId":"' + userId + '"%';
+  return sequelize.query(
+    'DELETE FROM sessions WHERE data LIKE ? OR data LIKE ?',
+    { replacements: [pattern1, pattern2] }
+  );
 }
 
 // ─── Routes ───
@@ -272,14 +288,15 @@ router.post('/forgot-password', function(req, res) {
         return res.json(genericResponse);
       }
 
-      var token = crypto.randomBytes(32).toString('hex');
+      var rawToken = crypto.randomBytes(32).toString('hex');
+      var hashedToken = hashResetToken(rawToken);
       var expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
       return user.update({
-        resetPasswordToken: token,
+        resetPasswordToken: hashedToken,
         resetPasswordTokenExpiry: expiry
       }).then(function() {
-        return sendPasswordResetEmail(email, token);
+        return sendPasswordResetEmail(email, rawToken);
       }).then(function(emailResult) {
         var response = { success: true, message: genericResponse.message };
         if (!emailResult.sent) {
@@ -294,7 +311,7 @@ router.post('/forgot-password', function(req, res) {
         res.json({
           success: true,
           message: 'Password reset requested, but sending the email failed.',
-          resetLink: env.baseUrl + '/#reset-password?token=' + token
+          resetLink: env.baseUrl + '/#reset-password?token=' + rawToken
         });
       });
     })
@@ -313,7 +330,9 @@ router.post('/reset-password', resetPasswordRules, validate, function(req, res) 
     return res.status(400).json({ success: false, message: 'Reset token is required' });
   }
 
-  User.findOne({ where: { resetPasswordToken: token } })
+  var hashedToken = hashResetToken(token);
+
+  User.findOne({ where: { resetPasswordToken: hashedToken } })
     .then(function(user) {
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
@@ -327,9 +346,14 @@ router.post('/reset-password', resetPasswordRules, validate, function(req, res) 
           password: hashedPassword,
           resetPasswordToken: null,
           resetPasswordTokenExpiry: null
+        }).then(function() {
+          // Invalidate all active sessions for the user after a successful reset.
+          return invalidateUserSessions(user.id).then(function() {
+            res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
+          });
         });
       }).then(function() {
-        res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
+        // no-op: response is sent above
       });
     })
     .catch(function(err) {
