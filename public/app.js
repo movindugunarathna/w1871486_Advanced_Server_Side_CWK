@@ -189,7 +189,7 @@
       '<h3 class="card-title mb-3">Reset Password</h3>' +
       '<form id="form-reset">' +
       '<div class="mb-3"><label class="form-label">Token</label>' +
-      '<input type="text" class="form-control" name="token" value="' + escapeHtml(token) + '" required></div>' +
+      '<input type="text" class="form-control" name="token" value="' + escapeHtml(token) + '" required readonly></div>' +
       '<div class="mb-3"><label class="form-label">New Password</label>' +
       '<input type="password" class="form-control" name="newPassword" required></div>' +
       '<button type="submit" class="btn btn-primary w-100">Reset Password</button>' +
@@ -758,9 +758,18 @@
 
   function route() {
     var hash = (location.hash || '#home').slice(1);
-    var parts = hash.split('/');
+    // Ignore query-string part in hash (e.g. "#reset-password?token=...")
+    // so that routing matches "reset-password" exactly.
+    var pathPart = hash.split('?')[0];
+    var parts = pathPart.split('/');
     var base = parts[0];
     showMessage('');
+
+    // If already logged in, don't show auth pages that would confuse the user.
+    if (currentUser && (base === 'login' || base === 'register')) {
+      location.hash = '#profile';
+      return;
+    }
 
     switch (base) {
       case 'home':

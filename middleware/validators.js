@@ -23,7 +23,10 @@ exports.registerRules = [
     .trim()
     .isEmail().withMessage('Valid email is required')
     .custom(function(value) {
-      if (!value.endsWith(env.universityDomain)) {
+      // Domain match should be case-insensitive.
+      var domain = String(env.universityDomain || '').toLowerCase();
+      var email = String(value || '').toLowerCase();
+      if (!email.endsWith(domain)) {
         throw new Error('Email must end with ' + env.universityDomain);
       }
       return true;
@@ -75,4 +78,11 @@ exports.resetPasswordRules = [
     .matches(/[a-z]/).withMessage('Password must contain at least 1 lowercase letter')
     .matches(/[0-9]/).withMessage('Password must contain at least 1 number')
     .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least 1 special character')
+];
+
+// Forgot password validation
+exports.forgotPasswordRules = [
+  body('email')
+    .trim()
+    .isEmail().withMessage('Valid email is required')
 ];

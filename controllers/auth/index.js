@@ -7,8 +7,9 @@ var crypto = require('crypto');
 var nodemailer = require('nodemailer');
 
 var { User, Profile, sequelize } = require('../../models');
-var { registerRules, loginRules, resetPasswordRules, validate } = require('../../middleware/validators');
+var { registerRules, loginRules, forgotPasswordRules, resetPasswordRules, validate } = require('../../middleware/validators');
 var env = require('../../config/env');
+var { forgotPasswordLimiter } = require('../../middleware/rateLimiter');
 
 exports.name = 'auth';
 exports.prefix = '/api/auth';
@@ -130,6 +131,9 @@ router.post('/register', registerRules, validate, function(req, res) {
   var firstName = req.body.firstName;
   var lastName = req.body.lastName;
 
+  // Normalize so duplicate-check and login work consistently.
+  email = email.toLowerCase();
+
   User.findOne({ where: { email: email } })
     .then(function(existing) {
       if (existing) {
@@ -224,6 +228,9 @@ router.post('/login', loginRules, validate, function(req, res) {
   var email = req.body.email;
   var password = req.body.password;
 
+  // Normalize so login works consistently.
+  email = email.toLowerCase();
+
   User.findOne({ where: { email: email } })
     .then(function(user) {
       if (!user) {
@@ -272,12 +279,14 @@ router.post('/logout', function(req, res) {
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', function(req, res) {
+router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordRules, validate, function(req, res) {
   var email = req.body.email;
 
   if (!email) {
     return res.status(400).json({ success: false, message: 'Email is required' });
   }
+
+  email = String(email).toLowerCase();
 
   // Always respond the same way to prevent email enumeration
   var genericResponse = { success: true, message: 'If that email exists, a reset link has been sent.' };
