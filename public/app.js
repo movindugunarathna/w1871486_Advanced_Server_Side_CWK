@@ -77,11 +77,17 @@
 
   // ─── Auth Pages ───
 
-  function renderLogin() {
+  function renderLogin(isDeveloperPortal) {
+    isDeveloperPortal = !!isDeveloperPortal;
+    var title = isDeveloperPortal ? 'Developer login' : 'Login';
+    var footerLinks = isDeveloperPortal
+      ? '<p class="mt-3 text-center"><a href="#login">Alumni login</a> | <a href="#forgot-password">Forgot password?</a></p>'
+      : '<p class="mt-3 text-center"><a href="#register">Create an account</a> | <a href="#forgot-password">Forgot password?</a></p>';
     content.innerHTML =
       '<div class="row justify-content-center"><div class="col-md-5">' +
       '<div class="card"><div class="card-body">' +
-      '<h3 class="card-title mb-3">Login</h3>' +
+      '<h3 class="card-title mb-3">' + title + '</h3>' +
+      (isDeveloperPortal ? '<p class="text-muted small mb-3">For developer accounts only.</p>' : '') +
       '<form id="form-login">' +
       '<div class="mb-3"><label class="form-label">Email</label>' +
       '<input type="email" class="form-control" name="email" required></div>' +
@@ -89,7 +95,7 @@
       '<input type="password" class="form-control" name="password" required></div>' +
       '<button type="submit" class="btn btn-primary w-100">Login</button>' +
       '</form>' +
-      '<p class="mt-3 text-center"><a href="#register">Create an account</a> | <a href="#forgot-password">Forgot password?</a></p>' +
+      footerLinks +
       '</div></div></div></div>';
 
     document.getElementById('form-login').addEventListener('submit', function (e) {
@@ -604,6 +610,17 @@
 
   // ─── Developer Pages ───
 
+  function renderDeveloperPortalUnauthorized() {
+    content.innerHTML =
+      '<div class="row justify-content-center"><div class="col-md-6">' +
+      '<div class="card border-warning"><div class="card-body">' +
+      '<h3 class="card-title">Not authorised</h3>' +
+      '<p class="card-text mb-0">Developer tools (API keys, etc.) are only for developer accounts. You are signed in as an alumnus. Log out and sign in with a developer account to use them.</p>' +
+      '</div></div>' +
+      '<p class="mt-3"><a href="#profile" class="btn btn-primary">Go to my profile</a></p>' +
+      '</div></div>';
+  }
+
   function renderApiKeys() {
     content.innerHTML = '<h2>API Keys</h2><p>Loading...</p>';
 
@@ -701,7 +718,13 @@
       });
 
     }).catch(function (err) {
-      content.innerHTML = '<div class="alert alert-danger">' + escapeHtml(err.message) + '</div>';
+      var msg = err.message || '';
+      if (msg.indexOf('Not authorised') !== -1 || msg.indexOf('developer') !== -1) {
+        content.innerHTML =
+          '<div class="alert alert-warning"><strong>Not authorised</strong><br>' + escapeHtml(msg) + '</div>';
+      } else {
+        content.innerHTML = '<div class="alert alert-danger">' + escapeHtml(msg) + '</div>';
+      }
     });
   }
 
@@ -756,7 +779,7 @@
       '</div></div></div>' +
       '<div class="col-md-4"><div class="card"><div class="card-body">' +
       '<h5>Developers</h5><p>Generate API keys and integrate Alumni of the Day into your apps.</p>' +
-      '<a href="#login" class="btn btn-outline-success">Login</a>' +
+      '<a href="#developer-login" class="btn btn-outline-success">Developer login</a>' +
       '</div></div></div>' +
       '<div class="col-md-4"><div class="card"><div class="card-body">' +
       '<h5>API Docs</h5><p>Explore the full interactive API documentation.</p>' +
@@ -787,8 +810,18 @@
       case '':
         renderHome();
         break;
+      case 'developer-login':
+        if (currentUser && currentUser.role === 'alumnus') {
+          showMessage('Not authorised. Developer login is only for developer accounts.', 'warning');
+          renderDeveloperPortalUnauthorized();
+        } else if (currentUser && currentUser.role === 'developer') {
+          location.hash = '#api-keys';
+        } else {
+          renderLogin(true);
+        }
+        break;
       case 'login':
-        renderLogin();
+        renderLogin(false);
         break;
       case 'register':
         renderRegister();
@@ -814,7 +847,11 @@
         renderBidding();
         break;
       case 'api-keys':
-        renderApiKeys();
+        if (currentUser && currentUser.role === 'alumnus') {
+          renderDeveloperPortalUnauthorized();
+        } else {
+          renderApiKeys();
+        }
         break;
       case 'test-public-api':
         renderTestPublicApi();

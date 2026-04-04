@@ -50,13 +50,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 
-// Session store (XAMPP MySQL) — must use the same database as Sequelize (see config/db.js).
+// Session store (XAMPP MySQL)
 var sessionStore = new MySQLStore({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: sequelize.config.database,
+  database: process.env.DB_NAME || 'alumni_influencers',
   // Keep server-side session expiry aligned with the cookie maxAge (inactivity timeout).
   expiration: 30 * 60 * 1000 // 30 minutes
 });

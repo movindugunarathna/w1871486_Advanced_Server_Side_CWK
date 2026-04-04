@@ -27,5 +27,5 @@ exports.isDeveloper = function(req, res, next) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
   }
-  return res.status(403).json({ success: false, message: 'Access denied. Developers only.' });
+  return res.status(403).json({ success: false, message: 'Not authorised. The developer portal is only for developer accounts.' });
 };
