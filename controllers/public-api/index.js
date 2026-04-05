@@ -47,7 +47,55 @@ var apiKeyLimiter = rateLimit({
   }
 });
 
-// GET /api/alumni-of-the-day
+/**
+ * @swagger
+ * /api/alumni-of-the-day:
+ *   get:
+ *     summary: Get today's featured Alumni of the Day
+ *     description: >
+ *       Returns the full public profile of today's featured alumnus including
+ *       degrees, certifications, licences, professional courses, and employment
+ *       history. No sensitive data (email, password, bid amounts) is included.
+ *       Requires a valid developer API key in the Authorization header.
+ *       Response is cached for 1 hour (Cache-Control: max-age=3600).
+ *     tags: [Public]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Featured alumnus data (or null if no winner today)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/AlumniOfTheDay'
+ *                 - type: object
+ *                   properties:
+ *                     featured:
+ *                       type: 'null'
+ *                       example: null
+ *                     message:
+ *                       type: string
+ *                       example: No Alumni of the Day today.
+ *       401:
+ *         description: Missing, invalid, or revoked API key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       429:
+ *         description: API rate limit exceeded (100 req/hour per key)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/alumni-of-the-day', apiKeyAuth, apiKeyLimiter, async function(req, res) {
   var todayDateOnly = getTodayDateOnly();
 

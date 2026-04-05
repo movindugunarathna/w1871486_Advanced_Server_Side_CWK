@@ -93,12 +93,64 @@ function invalidateUserSessions(userId) {
 
 // ─── Routes ───
 
-// GET /api/auth/health
+/**
+ * @swagger
+ * /api/auth/health:
+ *   get:
+ *     summary: Auth service health check
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ */
 router.get('/health', function(req, res) {
   res.json({ status: 'ok' });
 });
 
-// GET /api/auth/me
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get the currently signed-in user
+ *     tags: [Authentication]
+ *     security:
+ *       - sessionAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [alumnus, developer]
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/me', function(req, res) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ success: false, message: 'Not signed in' });
@@ -125,7 +177,68 @@ router.get('/me', function(req, res) {
     });
 });
 
-// POST /api/auth/register
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new alumni account
+ *     description: Creates a new user with role "alumnus". Email must end with the university domain. A verification email is sent.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password, firstName, lastName]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: alice.jones@eastminster.ac.uk
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: StrongP@ss1
+ *                 description: Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character
+ *               firstName:
+ *                 type: string
+ *                 example: Alice
+ *               lastName:
+ *                 type: string
+ *                 example: Jones
+ *     responses:
+ *       201:
+ *         description: Registration successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Registration successful! Please check your email to verify your account.
+ *       400:
+ *         description: Validation error (invalid email domain, weak password, etc.)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       409:
+ *         description: Email already registered
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/register', registerRules, validate, function(req, res) {
   var email = req.body.email;
   var password = req.body.password;
@@ -192,7 +305,40 @@ router.post('/register', registerRules, validate, function(req, res) {
     });
 });
 
-// GET /api/auth/verify-email?token=xxx
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   get:
+ *     summary: Verify email address
+ *     description: Verifies a newly registered user's email using the token sent via email.
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Verification token from the email link
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       400:
+ *         description: Invalid, expired, or already-used token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/verify-email', function(req, res) {
   var token = req.query.token;
 
@@ -228,7 +374,71 @@ router.get('/verify-email', function(req, res) {
     });
 });
 
-// POST /api/auth/login
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Log in with email and password
+ *     description: Authenticates the user and creates a server-side session. Returns a session cookie (connect.sid).
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john.doe@eastminster.ac.uk
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: Password1!
+ *     responses:
+ *       200:
+ *         description: Logged in successfully — session cookie is set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Logged in successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [alumnus, developer]
+ *       401:
+ *         description: Invalid email or password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Email not verified yet
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/login', loginRules, validate, function(req, res) {
   var email = req.body.email;
   var password = req.body.password;
@@ -271,7 +481,34 @@ router.post('/login', loginRules, validate, function(req, res) {
     });
 });
 
-// POST /api/auth/logout
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Log out and destroy the session
+ *     tags: [Authentication]
+ *     security:
+ *       - sessionAuth: []
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/logout', isAuthenticated, function(req, res) {
   req.session.destroy(function(err) {
     if (err) {
@@ -283,7 +520,57 @@ router.post('/logout', isAuthenticated, function(req, res) {
   });
 });
 
-// POST /api/auth/forgot-password
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset email
+ *     description: Sends a password-reset link to the given email. Always returns 200 to prevent email enumeration.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: john.doe@eastminster.ac.uk
+ *     responses:
+ *       200:
+ *         description: Reset link sent (or silent success if email not found)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: If that email exists, a reset link has been sent.
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       429:
+ *         description: Rate limit exceeded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordRules, validate, function(req, res) {
   var email = req.body.email;
 
@@ -335,7 +622,53 @@ router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordRules, vali
     });
 });
 
-// POST /api/auth/reset-password?token=xxx
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password using the emailed token
+ *     description: Validates the reset token, updates the password, and invalidates all active sessions for the user.
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unhashed reset token received via email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newPassword]
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: NewStr0ng!Pass
+ *                 description: Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       400:
+ *         description: Invalid or expired token, or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/reset-password', resetPasswordRules, validate, function(req, res) {
   var token = req.query.token;
   var newPassword = req.body.newPassword;

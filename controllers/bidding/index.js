@@ -60,7 +60,59 @@ async function getWinsThisMonth(userId, now) {
   });
 }
 
-// GET /api/bidding/slot
+/**
+ * @swagger
+ * /api/bidding/slot:
+ *   get:
+ *     summary: View tomorrow's bidding slot info
+ *     description: Returns the date, whether bidding is open, the user's current bid (if any), and total bids placed. Bid amounts are never revealed.
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     responses:
+ *       200:
+ *         description: Slot information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     date:
+ *                       type: string
+ *                       format: date
+ *                       example: '2025-04-15'
+ *                     biddingOpen:
+ *                       type: boolean
+ *                     currentUserBid:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         bidId:
+ *                           type: integer
+ *                         status:
+ *                           type: string
+ *                           enum: [active, won, lost, cancelled]
+ *                     totalBids:
+ *                       type: integer
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not an alumnus
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/slot', function(req, res) {
   var tomorrowDateOnly = getTomorrowDateOnly();
   var biddingOpen = isBiddingOpenNow();
@@ -97,7 +149,63 @@ router.get('/slot', function(req, res) {
   });
 });
 
-// POST /api/bidding/bid
+/**
+ * @swagger
+ * /api/bidding/bid:
+ *   post:
+ *     summary: Place a blind bid for tomorrow's Alumni of the Day slot
+ *     description: Creates a new bid. Only one active bid per user per day. Monthly win limit enforced (3, or 4 if attendedEvent).
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount]
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 format: float
+ *                 minimum: 0.01
+ *                 example: 25.50
+ *     responses:
+ *       201:
+ *         description: Bid placed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Bid placed
+ *                 bidId:
+ *                   type: integer
+ *       400:
+ *         description: Bidding closed, duplicate bid, or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Monthly feature limit reached
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       429:
+ *         description: Rate limit exceeded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/bid', bidLimiter, bidRules, validate, async function(req, res) {
   var tomorrowDateOnly = getTomorrowDateOnly();
   var userId = req.session.userId;
@@ -146,7 +254,53 @@ router.post('/bid', bidLimiter, bidRules, validate, async function(req, res) {
   }
 });
 
-// PUT /api/bidding/bid/:bidId
+/**
+ * @swagger
+ * /api/bidding/bid/{bidId}:
+ *   put:
+ *     summary: Increase an existing bid (increase only)
+ *     description: Updates the bid amount. New amount must be strictly greater than the current amount.
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: bidId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount]
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 format: float
+ *                 example: 30.00
+ *     responses:
+ *       200:
+ *         description: Bid updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       400:
+ *         description: Bidding closed or amount not greater than current bid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       404:
+ *         description: Bid not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.put('/bid/:bidId', bidRules, validate, async function(req, res) {
   var tomorrowDateOnly = getTomorrowDateOnly();
   var userId = req.session.userId;
@@ -185,7 +339,35 @@ router.put('/bid/:bidId', bidRules, validate, async function(req, res) {
   }
 });
 
-// DELETE /api/bidding/bid/:bidId
+/**
+ * @swagger
+ * /api/bidding/bid/{bidId}:
+ *   delete:
+ *     summary: Cancel an active bid
+ *     description: Sets the bid status to "cancelled". Only works for active bids for tomorrow.
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: bidId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Bid cancelled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       404:
+ *         description: Bid not found or not cancellable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.delete('/bid/:bidId', async function(req, res) {
   var tomorrowDateOnly = getTomorrowDateOnly();
   var userId = req.session.userId;
@@ -207,7 +389,50 @@ router.delete('/bid/:bidId', async function(req, res) {
   }
 });
 
-// GET /api/bidding/bid/:bidId/status
+/**
+ * @swagger
+ * /api/bidding/bid/{bidId}/status:
+ *   get:
+ *     summary: Check if a bid is currently winning or not
+ *     description: Compares the bid against the highest active bid for the same date. Does not reveal the highest amount.
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: bidId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Bid status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bidId:
+ *                       type: integer
+ *                     status:
+ *                       type: string
+ *                       enum: [active, won, lost, cancelled]
+ *                     position:
+ *                       type: string
+ *                       enum: [winning, not winning]
+ *       404:
+ *         description: Bid not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/bid/:bidId/status', async function(req, res) {
   var tomorrowDateOnly = getTomorrowDateOnly();
   var userId = req.session.userId;
@@ -245,7 +470,62 @@ router.get('/bid/:bidId/status', async function(req, res) {
   }
 });
 
-// GET /api/bidding/history?page=1&limit=10
+/**
+ * @swagger
+ * /api/bidding/history:
+ *   get:
+ *     summary: View own bidding history (paginated)
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 50
+ *     responses:
+ *       200:
+ *         description: Paginated bid history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Bid'
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not an alumnus
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/history', async function(req, res) {
   var userId = req.session.userId;
   var page = parseInt(req.query.page, 10) || 1;
@@ -277,7 +557,56 @@ router.get('/history', async function(req, res) {
   }
 });
 
-// GET /api/bidding/monthly-status
+/**
+ * @swagger
+ * /api/bidding/monthly-status:
+ *   get:
+ *     summary: View monthly win limit status
+ *     description: Shows how many times the user has won this month, the max allowed, and remaining slots.
+ *     tags: [Bidding]
+ *     security:
+ *       - sessionAuth: []
+ *     responses:
+ *       200:
+ *         description: Monthly status breakdown
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     month:
+ *                       type: string
+ *                       example: April 2025
+ *                     winsThisMonth:
+ *                       type: integer
+ *                       example: 2
+ *                     maxAllowed:
+ *                       type: integer
+ *                       example: 3
+ *                     attendedEvent:
+ *                       type: boolean
+ *                     remainingSlots:
+ *                       type: integer
+ *                       example: 1
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not an alumnus
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/monthly-status', async function(req, res) {
   var userId = req.session.userId;
   var now = new Date();

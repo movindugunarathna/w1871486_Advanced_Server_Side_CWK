@@ -16,7 +16,68 @@ exports.router = router;
 // All routes require isDeveloper middleware.
 router.use(isDeveloper);
 
-// POST /api/developer/api-keys
+/**
+ * @swagger
+ * /api/developer/api-keys:
+ *   post:
+ *     summary: Generate a new API key
+ *     description: Creates a cryptographically random API key. The full key value is returned only once in this response.
+ *     tags: [Developer]
+ *     security:
+ *       - sessionAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: My AR App
+ *                 description: A friendly label for this key
+ *     responses:
+ *       201:
+ *         description: API key created — full key shown once
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: API key generated
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     key:
+ *                       type: string
+ *                       example: a1b2c3d4e5f6...
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not a developer account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
   var developerId = req.session.userId;
   var name = req.body.name;
@@ -43,7 +104,55 @@ router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
   }
 });
 
-// GET /api/developer/api-keys
+/**
+ * @swagger
+ * /api/developer/api-keys:
+ *   get:
+ *     summary: List all API keys for this developer
+ *     description: Returns metadata and a prefix (first 8 chars) for each key. Full key values are never returned.
+ *     tags: [Developer]
+ *     security:
+ *       - sessionAuth: []
+ *     responses:
+ *       200:
+ *         description: List of API keys
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       keyPrefix:
+ *                         type: string
+ *                         example: a1b2c3d4...
+ *                       isRevoked:
+ *                         type: boolean
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not a developer account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/api-keys', async function(req, res) {
   var developerId = req.session.userId;
 
@@ -78,7 +187,47 @@ router.get('/api-keys', async function(req, res) {
   }
 });
 
-// DELETE /api/developer/api-keys/:id (revoke)
+/**
+ * @swagger
+ * /api/developer/api-keys/{id}:
+ *   delete:
+ *     summary: Revoke an API key
+ *     description: Sets isRevoked to true. The key can no longer authenticate requests.
+ *     tags: [Developer]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Key revoked
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessMessage'
+ *       404:
+ *         description: API key not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not a developer account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.delete('/api-keys/:id', async function(req, res) {
   var developerId = req.session.userId;
   var id = req.params.id;
@@ -97,7 +246,79 @@ router.delete('/api-keys/:id', async function(req, res) {
   }
 });
 
-// GET /api/developer/api-keys/:id/stats
+/**
+ * @swagger
+ * /api/developer/api-keys/{id}/stats:
+ *   get:
+ *     summary: Get usage statistics for an API key
+ *     description: Returns total requests, last 7 days count, 20 most recent requests, and an endpoint breakdown.
+ *     tags: [Developer]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Usage statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keyName:
+ *                       type: string
+ *                     totalRequests:
+ *                       type: integer
+ *                     last7Days:
+ *                       type: integer
+ *                     recentRequests:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           endpoint:
+ *                             type: string
+ *                           method:
+ *                             type: string
+ *                           timestamp:
+ *                             type: string
+ *                             format: date-time
+ *                           ipAddress:
+ *                             type: string
+ *                     endpointBreakdown:
+ *                       type: object
+ *                       additionalProperties:
+ *                         type: integer
+ *                       example:
+ *                         GET /api/alumni-of-the-day: 145
+ *       404:
+ *         description: API key not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       401:
+ *         description: Not signed in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Not a developer account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
 router.get('/api-keys/:id/stats', async function(req, res) {
   var developerId = req.session.userId;
   var id = req.params.id;
