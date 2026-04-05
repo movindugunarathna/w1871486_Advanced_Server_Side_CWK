@@ -3,7 +3,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 var bcrypt = require('bcryptjs');
-var { sequelize, User, Profile, Degree, Employment } = require('../models');
+var { sequelize, User, Profile, Degree, Employment, FeaturedAlumnus } = require('../models');
 
 async function seed() {
   try {
@@ -42,6 +42,15 @@ async function seed() {
       role: 'Software Engineer',
       startDate: '2020-07-01',
       endDate: null
+    });
+
+    // Sample "Alumni of the Day" for MySQL's current calendar day (same as public API CURDATE() match).
+    await FeaturedAlumnus.create({
+      userId: alumni1.id,
+      profileId: profile1.id,
+      featuredDate: sequelize.literal('CURDATE()'),
+      winningBidAmount: 75.5,
+      activatedAt: new Date()
     });
 
     var alumni2 = await User.create({
@@ -105,6 +114,8 @@ async function seed() {
     console.log('  Alumni:    jane.smith@eastminster.ac.uk');
     console.log('  Alumni:    bob.wilson@eastminster.ac.uk');
     console.log('  Developer: dev.user@eastminster.ac.uk');
+    console.log('\nSample Alumni of the Day: john.doe (featuredDate = today) — test with:');
+    console.log('  GET /api/alumni-of-the-day  (Authorization: Bearer <api key from developer portal>)');
 
     process.exit(0);
   } catch (err) {

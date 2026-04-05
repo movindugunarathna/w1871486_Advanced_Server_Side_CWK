@@ -4,9 +4,11 @@ var express = require('express');
 var router = express.Router();
 
 var rateLimit = require('express-rate-limit');
+var { Op } = require('sequelize');
 
 var apiKeyAuth = require('../../middleware/apiKeyAuth');
 var {
+  sequelize,
   FeaturedAlumnus,
   Profile,
   Degree,
@@ -19,18 +21,6 @@ var {
 exports.name = 'public-api';
 exports.prefix = '/api';
 exports.router = router;
-
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function toDateOnlyLocal(d) {
-  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-}
-
-function getTodayDateOnly() {
-  return toDateOnlyLocal(new Date());
-}
 
 // 100 requests per hour per API key (keyed by apiKeyId from apiKeyAuth).
 var apiKeyLimiter = rateLimit({
@@ -96,26 +86,44 @@ var apiKeyLimiter = rateLimit({
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
  */
-router.get('/alumni-of-the-day', apiKeyAuth, apiKeyLimiter, async function(req, res) {
-  var todayDateOnly = getTodayDateOnly();
+var profileAssociations = [Degree, Certification, Licence, ProfessionalCourse, Employment];
 
+router.get('/alumni-of-the-day', apiKeyAuth, apiKeyLimiter, async function(req, res) {
   try {
+    // Load featured row without JOINs first (avoids Sequelize subquery/join edge cases), then load Profile.
     var featured = await FeaturedAlumnus.findOne({
-      where: { featuredDate: todayDateOnly },
-      include: [{
-        model: Profile,
-        include: [Degree, Certification, Licence, ProfessionalCourse, Employment]
-      }]
+      where: sequelize.where(
+        sequelize.col('FeaturedAlumnus.featuredDate'),
+        Op.eq,
+        sequelize.fn('CURDATE')
+      )
     });
+
+    var isLive = !!featured;
+    if (!featured) {
+      featured = await FeaturedAlumnus.findOne({
+        order: [['featuredDate', 'DESC']]
+      });
+      isLive = false;
+    }
+
+    var p = featured
+      ? await Profile.findByPk(featured.profileId, {
+          include: profileAssociations
+        })
+      : null;
 
     // Cache-Control header (1 hour)
     res.set('Cache-Control', 'max-age=3600');
 
-    if (!featured || !featured.Profile) {
-      return res.status(200).json({ featured: null, message: 'No Alumni of the Day today.' });
+    if (!featured || !p) {
+      return res.status(200).json({
+        featured: null,
+        message:
+          'No featured alumnus in the database. From the project root run: node utils/seed.js ' +
+          '(uses your .env DB_NAME). Then restart the server and create a new API key.'
+      });
     }
-
-    var p = featured.Profile;
 
     var alumni = {
       firstName: p.firstName,
@@ -143,7 +151,7 @@ router.get('/alumni-of-the-day', apiKeyAuth, apiKeyLimiter, async function(req, 
     return res.status(200).json({
       alumni: alumni,
       featuredDate: featured.featuredDate,
-      isLive: true
+      isLive: isLive
     });
   } catch (err) {
     console.error('Public endpoint error:', err);
