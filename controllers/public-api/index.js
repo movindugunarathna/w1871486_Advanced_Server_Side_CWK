@@ -7,9 +7,11 @@ var rateLimit = require('express-rate-limit');
 var { Op } = require('sequelize');
 
 var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
+var { validate, alumniQueryRules } = require('../../middleware/validators');
 var {
   sequelize,
   FeaturedAlumnus,
+  User,
   Profile,
   Degree,
   Certification,
@@ -162,5 +164,161 @@ router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day')
   } catch (err) {
     console.error('Public endpoint error:', err);
     return res.status(500).json({ success: false, message: 'Failed to load Alumni of the Day' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/alumni:
+ *   get:
+ *     summary: Browse verified alumni profiles
+ *     description: >
+ *       Returns a paginated list of public alumni profiles with optional filters
+ *       for programme, graduation year, and industry sector.
+ *     tags: [Public]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: programme
+ *         schema:
+ *           type: string
+ *         description: Degree name contains this value
+ *       - in: query
+ *         name: graduationYear
+ *         schema:
+ *           type: integer
+ *         description: Degree completion year
+ *       - in: query
+ *         name: industrySector
+ *         schema:
+ *           type: string
+ *         description: Employment company/role contains this value
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name, graduationYear]
+ *           default: name
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [ASC, DESC]
+ *           default: ASC
+ *     responses:
+ *       200:
+ *         description: Paginated alumni list
+ *       400:
+ *         description: Invalid query parameters
+ *       401:
+ *         description: Missing, invalid, or revoked API key
+ *       403:
+ *         description: Insufficient permissions
+ *       429:
+ *         description: API rate limit exceeded
+ *       500:
+ *         description: Server error
+ */
+router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), apiKeyLimiter, alumniQueryRules, validate, async function(req, res) {
+  var programme = req.query.programme ? String(req.query.programme).trim() : '';
+  var graduationYear = req.query.graduationYear ? Number(req.query.graduationYear) : null;
+  var industrySector = req.query.industrySector ? String(req.query.industrySector).trim() : '';
+  var page = req.query.page ? Number(req.query.page) : 1;
+  var limit = req.query.limit ? Number(req.query.limit) : 20;
+  var sortBy = req.query.sortBy || 'name';
+  var order = (req.query.order || 'ASC').toUpperCase();
+
+  var degreeFilter = {};
+  if (programme) {
+    degreeFilter.name = { [Op.like]: '%' + programme + '%' };
+  }
+  if (graduationYear) {
+    degreeFilter.completionDate = sequelize.where(
+      sequelize.fn('YEAR', sequelize.col('Degrees.completionDate')),
+      graduationYear
+    );
+  }
+
+  var sectorFilter = industrySector
+    ? {
+        [Op.or]: [
+          { company: { [Op.like]: '%' + industrySector + '%' } },
+          { role: { [Op.like]: '%' + industrySector + '%' } }
+        ]
+      }
+    : null;
+
+  var orderClause = sortBy === 'graduationYear'
+    ? [[Degree, 'completionDate', order]]
+    : [['lastName', order], ['firstName', order]];
+
+  try {
+    var result = await Profile.findAndCountAll({
+      attributes: { exclude: ['userId'] },
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'role', 'isVerified', 'appearanceCount'],
+          where: { role: 'alumnus', isVerified: true },
+          required: true
+        },
+        {
+          model: Degree,
+          attributes: ['name', 'university', 'completionDate'],
+          where: Object.keys(degreeFilter).length ? degreeFilter : undefined,
+          required: Object.keys(degreeFilter).length > 0
+        },
+        { model: Certification, attributes: ['name', 'issuingBody', 'completionDate'] },
+        { model: Licence, attributes: ['name', 'awardingBody', 'completionDate'] },
+        { model: ProfessionalCourse, attributes: ['name', 'provider', 'completionDate'] },
+        {
+          model: Employment,
+          attributes: ['company', 'role', 'startDate', 'endDate'],
+          where: sectorFilter || undefined,
+          required: !!sectorFilter
+        }
+      ],
+      order: orderClause,
+      limit: limit,
+      offset: (page - 1) * limit,
+      distinct: true
+    });
+
+    var totalPages = Math.ceil(result.count / limit);
+
+    return res.json({
+      success: true,
+      data: {
+        alumni: result.rows,
+        pagination: {
+          total: result.count,
+          page: page,
+          limit: limit,
+          totalPages: totalPages
+        },
+        filters: {
+          programme: programme || null,
+          graduationYear: graduationYear || null,
+          industrySector: industrySector || null
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Alumni browse error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load alumni list' });
   }
 });

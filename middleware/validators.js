@@ -1,6 +1,6 @@
 'use strict'
 
-var { body, validationResult } = require('express-validator');
+var { body, query, validationResult } = require('express-validator');
 var env = require('../config/env');
 
 // Handle validation results
@@ -101,4 +101,15 @@ exports.apiKeyCreateRules = [
         return allowed.includes(permission);
       });
     }).withMessage('Invalid permission scope')
+];
+
+// Alumni browse query validation
+exports.alumniQueryRules = [
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+  query('graduationYear').optional().isInt({ min: 1900, max: 2100 }).toInt(),
+  query('programme').optional().trim().isLength({ max: 100 }).escape(),
+  query('industrySector').optional().trim().isLength({ max: 100 }).escape(),
+  query('sortBy').optional().isIn(['name', 'graduationYear']),
+  query('order').optional().isIn(['ASC', 'DESC'])
 ];
