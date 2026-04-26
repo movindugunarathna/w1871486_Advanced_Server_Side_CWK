@@ -1,0 +1,66 @@
+<% var pageTitle = 'Overview'; %>
+<%- include('layout') %>
+
+<h2 class="mb-4">Overview</h2>
+
+<div class="row g-4 mb-4" id="statCards">
+  <div class="col-md-3">
+    <div class="card text-white bg-primary shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title">Total Alumni</h6>
+        <h2 class="card-text" id="statTotalAlumni"><%= overview ? overview.totalAlumni : '—' %></h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-white bg-success shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title">Complete Profiles</h6>
+        <h2 class="card-text" id="statProfilesComplete"><%= overview ? overview.profilesComplete : '—' %></h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-white bg-info shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title">Total Certifications</h6>
+        <h2 class="card-text" id="statTotalCerts"><%= overview ? overview.totalCertifications : '—' %></h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-white bg-warning shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title">Employment Records</h6>
+        <h2 class="card-text" id="statTotalEmployment"><%= overview ? overview.totalEmploymentRecords : '—' %></h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Top 5 Job Titles</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="overviewJobTitles">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <canvas id="overviewJobTitlesChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Profile Completion Rate</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="overviewCompletion">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <canvas id="overviewCompletionChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('footer') %>

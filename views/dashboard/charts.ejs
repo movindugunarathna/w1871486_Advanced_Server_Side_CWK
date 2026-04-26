@@ -1,0 +1,130 @@
+<% var pageTitle = 'Charts'; %>
+<%- include('layout') %>
+
+<h2 class="mb-4">Analytics Charts</h2>
+
+<form id="filterForm" class="row g-2 mb-4">
+  <div class="col-md-3">
+    <input name="programme" class="form-control" placeholder="Programme...">
+  </div>
+  <div class="col-md-2">
+    <input name="graduationYear" type="number" class="form-control" placeholder="Graduation Year">
+  </div>
+  <div class="col-md-3">
+    <input name="industrySector" class="form-control" placeholder="Industry Sector...">
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+  </div>
+  <div class="col-md-2">
+    <button type="reset" class="btn btn-outline-secondary w-100" id="clearFilters">Clear</button>
+  </div>
+</form>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Top 10 Certifications</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="certifications">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="certificationsChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Top 10 Professional Courses</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="courses">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="coursesChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Employment by Sector</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="sector">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="sectorChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Certifications Trend (12 months)</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="certTrend">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="certTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Top 6 Employers</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="employers">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="employersChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Profile Completion Rate</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="completion">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="completionChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Top 15 Job Titles</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="jobTitles">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="jobTitlesChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Featured Alumni by Month</strong>
+        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="featuredTrend">PNG</button>
+      </div>
+      <div class="card-body chart-container">
+        <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
+        <canvas id="featuredTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('footer') %>

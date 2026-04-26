@@ -396,3 +396,146 @@ router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules
     return res.status(500).json({ success: false, message: 'Failed to load alumni list' });
   }
 });
+
+/**
+ * @swagger
+ * /api/alumni/{userId}:
+ *   get:
+ *     summary: Get a single alumni profile
+ *     description: >
+ *       Returns a single verified alumni profile by userId, including all
+ *       associations and featured alumnus history. Requires read:alumni scope.
+ *     tags: [Public]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The user ID of the alumnus
+ *     responses:
+ *       200:
+ *         description: Single alumni profile with featured history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profile:
+ *                       $ref: '#/components/schemas/Profile'
+ *                     additionalData:
+ *                       type: object
+ *                       properties:
+ *                         featuredCount:
+ *                           type: integer
+ *                         lastFeatured:
+ *                           type: string
+ *                           format: date
+ *                           nullable: true
+ *       401:
+ *         description: Missing, invalid, or revoked API key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       404:
+ *         description: Alumni not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       429:
+ *         description: API rate limit exceeded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
+ */
+router.get('/alumni/:userId', apiKeyAuth, hasPermission('read:alumni'), apiKeyLimiter, async function(req, res) {
+  try {
+    var userId = Number(req.params.userId);
+
+    if (!Number.isInteger(userId) || userId < 1) {
+      return res.status(404).json({ success: false, message: 'Alumni not found' });
+    }
+
+    var profile = await Profile.findOne({
+      where: { userId: userId },
+      include: [
+        {
+          model: User,
+          attributes: ['role', 'isVerified', 'appearanceCount'],
+          where: { role: 'alumnus', isVerified: true }
+        },
+        {
+          model: Degree,
+          attributes: ['name', 'university', 'completionDate']
+        },
+        {
+          model: Certification,
+          attributes: ['name', 'issuingBody', 'completionDate']
+        },
+        {
+          model: Licence,
+          attributes: ['name', 'awardingBody', 'completionDate']
+        },
+        {
+          model: ProfessionalCourse,
+          attributes: ['name', 'provider', 'completionDate']
+        },
+        {
+          model: Employment,
+          attributes: ['company', 'role', 'startDate', 'endDate']
+        }
+      ],
+      attributes: { exclude: ['userId'] }
+    });
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Alumni not found' });
+    }
+
+    var featuredCount = await FeaturedAlumnus.count({ where: { userId: userId } });
+
+    var lastFeaturedRow = await FeaturedAlumnus.findOne({
+      where: { userId: userId },
+      order: [['featuredDate', 'DESC']],
+      attributes: ['featuredDate']
+    });
+
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json({
+      success: true,
+      data: {
+        profile: profile,
+        additionalData: {
+          featuredCount: featuredCount,
+          lastFeatured: lastFeaturedRow ? lastFeaturedRow.featuredDate : null
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Alumni detail error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load alumni profile' });
+  }
+});
