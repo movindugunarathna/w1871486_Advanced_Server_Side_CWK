@@ -7,11 +7,13 @@ var rateLimit = require('express-rate-limit');
 var { Op } = require('sequelize');
 
 var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
+var { validate, alumniQueryRules } = require('../../middleware/validators');
 var { alumniQueryRules, validate } = require('../../middleware/validators');
 var {
   sequelize,
   User,
   FeaturedAlumnus,
+  User,
   Profile,
   Degree,
   Certification,
@@ -407,10 +409,6 @@ router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules
  *       associations and featured alumnus history. Requires read:alumni scope.
  *     tags: [Public]
  *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
  *         required: true
  *         schema:
  *           type: integer
