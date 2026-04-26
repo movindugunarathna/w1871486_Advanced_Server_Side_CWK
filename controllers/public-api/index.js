@@ -7,11 +7,11 @@ var rateLimit = require('express-rate-limit');
 var { Op } = require('sequelize');
 
 var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
-var { validate, alumniQueryRules } = require('../../middleware/validators');
+var { alumniQueryRules, validate } = require('../../middleware/validators');
 var {
   sequelize,
-  FeaturedAlumnus,
   User,
+  FeaturedAlumnus,
   Profile,
   Degree,
   Certification,
@@ -171,10 +171,11 @@ router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day')
  * @swagger
  * /api/alumni:
  *   get:
- *     summary: Browse verified alumni profiles
+ *     summary: Browse alumni profiles
  *     description: >
- *       Returns a paginated list of public alumni profiles with optional filters
- *       for programme, graduation year, and industry sector.
+ *       Returns a paginated, filterable list of verified alumni profiles with
+ *       degrees, certifications, licences, professional courses, and employment.
+ *       Requires a valid API key with read:alumni scope.
  *     tags: [Public]
  *     security:
  *       - bearerAuth: []
@@ -183,23 +184,24 @@ router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day')
  *         name: programme
  *         schema:
  *           type: string
- *         description: Degree name contains this value
+ *         description: Filter by degree programme name (contains match)
  *       - in: query
  *         name: graduationYear
  *         schema:
  *           type: integer
- *         description: Degree completion year
+ *         description: Filter by degree completion year
  *       - in: query
  *         name: industrySector
  *         schema:
  *           type: string
- *         description: Employment company/role contains this value
+ *         description: Filter by employment company or role (contains match)
  *       - in: query
  *         name: page
  *         schema:
  *           type: integer
  *           minimum: 1
  *           default: 1
+ *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
@@ -207,84 +209,156 @@ router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day')
  *           minimum: 1
  *           maximum: 100
  *           default: 20
+ *         description: Results per page
  *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
  *           enum: [name, graduationYear]
  *           default: name
+ *         description: Sort field
  *       - in: query
  *         name: order
  *         schema:
  *           type: string
  *           enum: [ASC, DESC]
  *           default: ASC
+ *         description: Sort direction
  *     responses:
  *       200:
  *         description: Paginated alumni list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     alumni:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Profile'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         programme:
+ *                           type: string
+ *                         graduationYear:
+ *                           type: string
+ *                         industrySector:
+ *                           type: string
  *       400:
  *         description: Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
  *       401:
  *         description: Missing, invalid, or revoked API key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
  *       403:
  *         description: Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
  *       429:
  *         description: API rate limit exceeded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
  */
-router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), apiKeyLimiter, alumniQueryRules, validate, async function(req, res) {
-  var programme = req.query.programme ? String(req.query.programme).trim() : '';
-  var graduationYear = req.query.graduationYear ? Number(req.query.graduationYear) : null;
-  var industrySector = req.query.industrySector ? String(req.query.industrySector).trim() : '';
-  var page = req.query.page ? Number(req.query.page) : 1;
-  var limit = req.query.limit ? Number(req.query.limit) : 20;
-  var sortBy = req.query.sortBy || 'name';
-  var order = (req.query.order || 'ASC').toUpperCase();
+router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules, validate, apiKeyLimiter, async function(req, res) {
+  try {
+    var programme = req.query.programme ? String(req.query.programme).trim() : '';
+    var graduationYear = req.query.graduationYear || '';
+    var industrySector = req.query.industrySector ? String(req.query.industrySector).trim() : '';
+    var parsedPage = req.query.page || 1;
+    var parsedLimit = req.query.limit || 20;
+    var sortBy = req.query.sortBy || 'name';
+    var sortOrder = req.query.order || 'ASC';
 
-  var degreeFilter = {};
-  if (programme) {
-    degreeFilter.name = { [Op.like]: '%' + programme + '%' };
-  }
-  if (graduationYear) {
-    degreeFilter.completionDate = sequelize.where(
-      sequelize.fn('YEAR', sequelize.col('Degrees.completionDate')),
-      graduationYear
-    );
-  }
+    var degreeFilter = null;
+    if (programme || graduationYear) {
+      degreeFilter = {};
+      if (programme) {
+        degreeFilter.name = { [Op.like]: '%' + programme + '%' };
+      }
+      if (graduationYear) {
+        degreeFilter.completionDate = sequelize.where(
+          sequelize.fn('YEAR', sequelize.col('Degrees.completionDate')),
+          Number(graduationYear)
+        );
+      }
+    }
 
-  var sectorFilter = industrySector
-    ? {
+    var sectorFilter = null;
+    if (industrySector) {
+      sectorFilter = {
         [Op.or]: [
           { company: { [Op.like]: '%' + industrySector + '%' } },
           { role: { [Op.like]: '%' + industrySector + '%' } }
         ]
-      }
-    : null;
+      };
+    }
 
-  var orderClause = sortBy === 'graduationYear'
-    ? [[Degree, 'completionDate', order]]
-    : [['lastName', order], ['firstName', order]];
+    var orderClause;
+    if (sortBy === 'graduationYear') {
+      orderClause = [[Degree, 'completionDate', sortOrder]];
+    } else {
+      orderClause = [['firstName', sortOrder], ['lastName', sortOrder]];
+    }
 
-  try {
     var result = await Profile.findAndCountAll({
-      attributes: { exclude: ['userId'] },
       include: [
         {
           model: User,
-          attributes: ['id', 'role', 'isVerified', 'appearanceCount'],
-          where: { role: 'alumnus', isVerified: true },
-          required: true
+          attributes: ['role', 'isVerified', 'appearanceCount'],
+          where: { role: 'alumnus', isVerified: true }
         },
         {
           model: Degree,
           attributes: ['name', 'university', 'completionDate'],
-          where: Object.keys(degreeFilter).length ? degreeFilter : undefined,
-          required: Object.keys(degreeFilter).length > 0
+          where: degreeFilter || undefined,
+          required: !!degreeFilter
         },
-        { model: Certification, attributes: ['name', 'issuingBody', 'completionDate'] },
-        { model: Licence, attributes: ['name', 'awardingBody', 'completionDate'] },
-        { model: ProfessionalCourse, attributes: ['name', 'provider', 'completionDate'] },
+        {
+          model: Certification,
+          attributes: ['name', 'issuingBody', 'completionDate']
+        },
+        {
+          model: Licence,
+          attributes: ['name', 'awardingBody', 'completionDate']
+        },
+        {
+          model: ProfessionalCourse,
+          attributes: ['name', 'provider', 'completionDate']
+        },
         {
           model: Employment,
           attributes: ['company', 'role', 'startDate', 'endDate'],
@@ -292,28 +366,28 @@ router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), apiKeyLimiter, a
           required: !!sectorFilter
         }
       ],
+      attributes: { exclude: ['userId'] },
       order: orderClause,
-      limit: limit,
-      offset: (page - 1) * limit,
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
       distinct: true
     });
 
-    var totalPages = Math.ceil(result.count / limit);
-
+    res.set('Cache-Control', 'public, max-age=300');
     return res.json({
       success: true,
       data: {
         alumni: result.rows,
         pagination: {
           total: result.count,
-          page: page,
-          limit: limit,
-          totalPages: totalPages
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(result.count / parsedLimit)
         },
         filters: {
-          programme: programme || null,
-          graduationYear: graduationYear || null,
-          industrySector: industrySector || null
+          programme: programme,
+          graduationYear: graduationYear,
+          industrySector: industrySector
         }
       }
     });

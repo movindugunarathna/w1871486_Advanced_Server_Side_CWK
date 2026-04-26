@@ -87,6 +87,17 @@ exports.forgotPasswordRules = [
     .isEmail().withMessage('Valid email is required')
 ];
 
+// Alumni browse query validation
+exports.alumniQueryRules = [
+  query('page').optional().isInt({ min: 1 }).withMessage('page must be an integer >= 1').toInt(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be an integer between 1 and 100').toInt(),
+  query('graduationYear').optional().isInt({ min: 1900, max: 2100 }).withMessage('graduationYear must be between 1900 and 2100').toInt(),
+  query('programme').optional().trim().isLength({ max: 100 }).withMessage('programme must be at most 100 characters').escape(),
+  query('industrySector').optional().trim().isLength({ max: 100 }).withMessage('industrySector must be at most 100 characters').escape(),
+  query('sortBy').optional().isIn(['name', 'graduationYear']).withMessage('sortBy must be name or graduationYear'),
+  query('order').optional().isIn(['ASC', 'DESC']).withMessage('order must be ASC or DESC')
+];
+
 // API Key creation validation
 exports.apiKeyCreateRules = [
   body('name')
@@ -101,15 +112,4 @@ exports.apiKeyCreateRules = [
         return allowed.includes(permission);
       });
     }).withMessage('Invalid permission scope')
-];
-
-// Alumni browse query validation
-exports.alumniQueryRules = [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-  query('graduationYear').optional().isInt({ min: 1900, max: 2100 }).toInt(),
-  query('programme').optional().trim().isLength({ max: 100 }).escape(),
-  query('industrySector').optional().trim().isLength({ max: 100 }).escape(),
-  query('sortBy').optional().isIn(['name', 'graduationYear']),
-  query('order').optional().isIn(['ASC', 'DESC'])
 ];
