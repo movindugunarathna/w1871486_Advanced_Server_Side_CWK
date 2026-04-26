@@ -3,7 +3,7 @@
 var { ApiKey, ApiKeyUsageLog } = require('../models');
 
 // Authenticate requests using API key in Authorization header
-module.exports = async function(req, res, next) {
+var apiKeyAuth = async function(req, res, next) {
   try {
     var authHeader = req.headers.authorization;
 
@@ -31,8 +31,24 @@ module.exports = async function(req, res, next) {
     });
 
     req.apiKeyDeveloper = { id: apiKey.developerId, apiKeyId: apiKey.id };
+    req.apiKey = apiKey;
     next();
   } catch (err) {
     next(err);
   }
 };
+
+var hasPermission = function(requiredScope) {
+  return function(req, res, next) {
+    var perms = (req.apiKey && req.apiKey.permissions) || [];
+    if (!perms.includes(requiredScope)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions. Required scope: ' + requiredScope
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { apiKeyAuth: apiKeyAuth, hasPermission: hasPermission };

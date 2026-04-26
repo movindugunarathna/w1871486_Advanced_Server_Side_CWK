@@ -91,6 +91,14 @@ exports.forgotPasswordRules = [
 exports.apiKeyCreateRules = [
   body('name')
     .trim()
-    .notEmpty().withMessage('Key label is required')
-    .escape()
+    .notEmpty().withMessage('Name is required')
+    .escape(),
+  body('permissions')
+    .isArray().withMessage('permissions must be an array')
+    .custom(function(arr) {
+      var allowed = ['read:alumni', 'read:analytics', 'read:alumni_of_day'];
+      return arr.every(function(permission) {
+        return allowed.includes(permission);
+      });
+    }).withMessage('Invalid permission scope')
 ];

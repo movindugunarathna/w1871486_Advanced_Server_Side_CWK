@@ -21,7 +21,10 @@ router.use(isDeveloper);
  * /api/developer/api-keys:
  *   post:
  *     summary: Generate a new API key
- *     description: Creates a cryptographically random API key. The full key value is returned only once in this response.
+ *     description: >
+ *       Creates a cryptographically random API key with explicit scopes.
+ *       Supported scopes: read:alumni (analytics dashboard), read:analytics (analytics dashboard),
+ *       read:alumni_of_day (mobile AR app). The full key value is returned only once in this response.
  *     tags: [Developer]
  *     security:
  *       - sessionAuth: []
@@ -31,12 +34,18 @@ router.use(isDeveloper);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name]
+ *             required: [name, permissions]
  *             properties:
  *               name:
  *                 type: string
  *                 example: My AR App
  *                 description: A friendly label for this key
+ *               permissions:
+ *                 type: array
+ *                 description: Scopes granted to this API key
+ *                 items:
+ *                   type: string
+ *                   enum: [read:alumni, read:analytics, read:alumni_of_day]
  *     responses:
  *       201:
  *         description: API key created — full key shown once
@@ -54,11 +63,15 @@ router.use(isDeveloper);
  *                 data:
  *                   type: object
  *                   properties:
- *                     id:
- *                       type: integer
  *                     key:
  *                       type: string
  *                       example: a1b2c3d4e5f6...
+ *                     name:
+ *                       type: string
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: string
  *       401:
  *         description: Not signed in
  *         content:
@@ -81,6 +94,7 @@ router.use(isDeveloper);
 router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
   var developerId = req.session.userId;
   var name = req.body.name;
+  var permissions = req.body.permissions;
 
   try {
     var fullKey = crypto.randomBytes(32).toString('hex');
@@ -89,6 +103,7 @@ router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
       developerId: developerId,
       key: fullKey,
       name: name,
+      permissions: permissions,
       isRevoked: false
     });
 
@@ -96,7 +111,11 @@ router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
     res.status(201).json({
       success: true,
       message: 'API key generated',
-      data: { id: created.id, key: fullKey }
+      data: {
+        key: fullKey,
+        name: created.name,
+        permissions: created.permissions || []
+      }
     });
   } catch (err) {
     console.error('Create api key error:', err);
@@ -135,6 +154,10 @@ router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
  *                       keyPrefix:
  *                         type: string
  *                         example: a1b2c3d4...
+ *                       permissions:
+ *                         type: array
+ *                         items:
+ *                           type: string
  *                       isRevoked:
  *                         type: boolean
  *                       createdAt:
@@ -163,6 +186,7 @@ router.get('/api-keys', async function(req, res) {
       attributes: [
         'id',
         'name',
+        'permissions',
         'isRevoked',
         'createdAt',
         [sequelize.fn('LEFT', sequelize.col('key'), 8), 'keyPrefix8']
@@ -175,6 +199,7 @@ router.get('/api-keys', async function(req, res) {
         id: r.id,
         name: r.name,
         keyPrefix: (r.keyPrefix8 || '') + '...',
+        permissions: r.permissions || [],
         isRevoked: r.isRevoked,
         createdAt: r.createdAt
       };

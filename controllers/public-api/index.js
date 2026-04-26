@@ -6,7 +6,7 @@ var router = express.Router();
 var rateLimit = require('express-rate-limit');
 var { Op } = require('sequelize');
 
-var apiKeyAuth = require('../../middleware/apiKeyAuth');
+var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
 var {
   sequelize,
   FeaturedAlumnus,
@@ -73,6 +73,12 @@ var apiKeyLimiter = rateLimit({
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
+ *       403:
+ *         description: Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorMessage'
  *       429:
  *         description: API rate limit exceeded (100 req/hour per key)
  *         content:
@@ -88,7 +94,7 @@ var apiKeyLimiter = rateLimit({
  */
 var profileAssociations = [Degree, Certification, Licence, ProfessionalCourse, Employment];
 
-router.get('/alumni-of-the-day', apiKeyAuth, apiKeyLimiter, async function(req, res) {
+router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day'), apiKeyLimiter, async function(req, res) {
   try {
     // Load featured row without JOINs first (avoids Sequelize subquery/join edge cases), then load Profile.
     var featured = await FeaturedAlumnus.findOne({

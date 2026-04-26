@@ -22,6 +22,11 @@ var ApiKey = sequelize.define('ApiKey', {
     type: DataTypes.STRING,
     allowNull: false
   },
+  permissions: {
+    type: DataTypes.JSON,
+    allowNull: false,
+    defaultValue: []
+  },
   isRevoked: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
