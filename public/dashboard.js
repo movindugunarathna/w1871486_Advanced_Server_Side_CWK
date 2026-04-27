@@ -9,6 +9,19 @@
     '#adb5bd', '#495057', '#0b5ed7', '#157347', '#b02a37'
   ];
 
+  // Severity colour bands for skill-gap / job-title bar charts.
+  // Critical (red) = top 30% of max, Significant (orange) = top 60%, Emerging (yellow) = rest.
+  function severityColors(counts) {
+    if (!counts || !counts.length) return [];
+    var max = Math.max.apply(null, counts);
+    return counts.map(function(c) {
+      var ratio = max > 0 ? c / max : 0;
+      if (ratio >= 0.7) return '#dc3545';   // critical — red
+      if (ratio >= 0.4) return '#fd7e14';   // significant — orange
+      return '#ffc107';                      // emerging — yellow
+    });
+  }
+
   // ─── Helpers ───
 
   function apiFetch(proxyPath, params) {
@@ -24,6 +37,89 @@
       if (!res.ok) throw new Error('API error: ' + res.status);
       return res.json();
     });
+  }
+
+  function expectedMimeForFilename(filename) {
+    var lower = String(filename || '').toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.csv')) return 'text/csv';
+    return '';
+  }
+
+  function isExpectedDownloadResponse(expectedMime, contentType, contentDisposition) {
+    if (!expectedMime) return true;
+    var type = String(contentType || '').toLowerCase();
+    var disposition = String(contentDisposition || '').toLowerCase();
+    var looksLikeAttachment = disposition.indexOf('attachment') !== -1;
+
+    if (expectedMime === 'application/pdf') {
+      return type.indexOf('application/pdf') !== -1 ||
+        (looksLikeAttachment && disposition.indexOf('.pdf') !== -1) ||
+        (looksLikeAttachment && type.indexOf('application/octet-stream') !== -1);
+    }
+
+    if (expectedMime === 'text/csv') {
+      return type.indexOf('text/csv') !== -1 ||
+        type.indexOf('application/csv') !== -1 ||
+        (looksLikeAttachment && disposition.indexOf('.csv') !== -1) ||
+        (looksLikeAttachment && type.indexOf('application/octet-stream') !== -1);
+    }
+
+    return false;
+  }
+
+  function downloadFile(proxyExportPath, filename) {
+    var expectedMime = expectedMimeForFilename(filename);
+    return fetch(proxyExportPath, { credentials: 'same-origin' }).then(function(res) {
+      if (res.redirected && /\/dashboard\/login(?:\?|$)/.test(res.url || '')) {
+        throw new Error('Session expired. Please log in again.');
+      }
+      if (!res.ok) {
+        // Try to extract the JSON error message the server sends.
+        return res.text().then(function(text) {
+          var msg = 'Export failed (' + res.status + ')';
+          try {
+            var body = JSON.parse(text);
+            if (body && body.message) msg = body.message;
+          } catch (e) { /* not JSON */ }
+          throw new Error(msg);
+        });
+      }
+      var contentType = String(res.headers.get('content-type') || '').toLowerCase();
+      var contentDisposition = String(res.headers.get('content-disposition') || '').toLowerCase();
+      if (!isExpectedDownloadResponse(expectedMime, contentType, contentDisposition)) {
+        return res.text().then(function(text) {
+          var msg = 'Unexpected export response';
+          try {
+            var body = JSON.parse(text);
+            if (body && body.message) msg = body.message;
+          } catch (e) {
+            if (text && text.trim()) msg = text.trim().slice(0, 200);
+          }
+          throw new Error(msg);
+        });
+      }
+      return res.blob();
+    }).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function withQueryParams(path, params) {
+    var url = new URL(path, window.location.origin);
+    Object.keys(params || {}).forEach(function(key) {
+      if (params[key] !== '' && params[key] != null) {
+        url.searchParams.set(key, params[key]);
+      }
+    });
+    return url.pathname + url.search;
   }
 
   function hideSpinner(canvasId) {
@@ -72,17 +168,33 @@
       destroyChart('certifications');
       var ctx = document.getElementById('certificationsChart');
       if (!ctx) return;
+      var counts = items.map(function(c) { return c.count; });
       window.charts.certifications = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: items.map(function(c) { return c.name; }),
           datasets: [{
             label: 'Count',
-            data: items.map(function(c) { return c.count; }),
-            backgroundColor: COLORS.slice(0, items.length)
+            data: counts,
+            backgroundColor: severityColors(counts)
           }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } } }
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterLabel: function(ctx) {
+                  var ratio = counts.length ? ctx.parsed.y / Math.max.apply(null, counts) : 0;
+                  if (ratio >= 0.7) return 'Severity: Critical';
+                  if (ratio >= 0.4) return 'Severity: Significant';
+                  return 'Severity: Emerging';
+                }
+              }
+            }
+          }
+        }
       });
     }).catch(function() { showError('certificationsChart', 'Failed to load certifications'); });
   }
@@ -207,14 +319,15 @@
       destroyChart('jobTitles');
       var ctx = document.getElementById('jobTitlesChart');
       if (!ctx) return;
+      var counts = items.map(function(j) { return j.count; });
       window.charts.jobTitles = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: items.map(function(j) { return j.title; }),
           datasets: [{
             label: 'Count',
-            data: items.map(function(j) { return j.count; }),
-            backgroundColor: COLORS.slice(0, items.length)
+            data: counts,
+            backgroundColor: severityColors(counts)
           }]
         },
         options: { responsive: true, plugins: { legend: { display: false } } }
@@ -520,6 +633,21 @@
         setTimeout(function() { loadAlumni({}, 1); }, 50);
       });
     }
+
+    var exportBtn = document.getElementById('exportAlumniCsv');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function() {
+        var endpoint = withQueryParams('/dashboard/proxy/alumni/export', Object.assign({}, alumniFilters, { format: 'csv' }));
+        setExportBtnLoading(exportBtn, true);
+        downloadFile(endpoint, 'alumni-export.csv')
+          .catch(function(err) {
+            alert('Failed to export alumni: ' + err.message);
+          })
+          .finally(function() {
+            setExportBtnLoading(exportBtn, false);
+          });
+      });
+    }
   }
 
   // ─── Download chart as PNG ───
@@ -539,6 +667,35 @@
     });
   }
 
+  function setExportBtnLoading(btn, loading) {
+    if (loading) {
+      btn.dataset.origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Exporting…';
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.origText || btn.textContent;
+    }
+  }
+
+  function initExportButtons() {
+    document.querySelectorAll('[data-endpoint]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var chartFilters = getFilters('filterForm');
+        var endpoint = withQueryParams(btn.dataset.endpoint, chartFilters);
+        var filename = btn.dataset.filename || 'export';
+        setExportBtnLoading(btn, true);
+        downloadFile(endpoint, filename)
+          .catch(function(err) {
+            alert('Export failed: ' + err.message);
+          })
+          .finally(function() {
+            setExportBtnLoading(btn, false);
+          });
+      });
+    });
+  }
+
   // ─── Utility ───
 
   function escapeHtml(str) {
@@ -546,6 +703,78 @@
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
+  }
+
+  // ─── Filter presets (localStorage) ───
+
+  var PRESETS_KEY = 'dashboard_chart_presets';
+
+  function loadPresetsFromStorage() {
+    try {
+      return JSON.parse(localStorage.getItem(PRESETS_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function savePresetsToStorage(presets) {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+  }
+
+  function populatePresetSelect() {
+    var sel = document.getElementById('presetSelect');
+    if (!sel) return;
+    var presets = loadPresetsFromStorage();
+    sel.innerHTML = '<option value="">Load saved preset…</option>';
+    Object.keys(presets).forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function initPresets() {
+    var saveBtn = document.getElementById('savePresetBtn');
+    var sel = document.getElementById('presetSelect');
+    var delBtn = document.getElementById('deletePresetBtn');
+    if (!saveBtn || !sel || !delBtn) return;
+
+    populatePresetSelect();
+
+    saveBtn.addEventListener('click', function() {
+      var name = window.prompt('Preset name:');
+      if (!name || !name.trim()) return;
+      var filters = getFilters('filterForm');
+      var presets = loadPresetsFromStorage();
+      presets[name.trim()] = filters;
+      savePresetsToStorage(presets);
+      populatePresetSelect();
+      sel.value = name.trim();
+    });
+
+    sel.addEventListener('change', function() {
+      var name = sel.value;
+      if (!name) return;
+      var presets = loadPresetsFromStorage();
+      var filters = presets[name] || {};
+      var form = document.getElementById('filterForm');
+      if (!form) return;
+      Object.keys(filters).forEach(function(key) {
+        var el = form.elements[key];
+        if (el) el.value = filters[key] || '';
+      });
+      allChartRenderers.forEach(function(fn) { fn(filters); });
+    });
+
+    delBtn.addEventListener('click', function() {
+      var name = sel.value;
+      if (!name) return;
+      var presets = loadPresetsFromStorage();
+      delete presets[name];
+      savePresetsToStorage(presets);
+      populatePresetSelect();
+    });
   }
 
   // ─── Init on DOM ready ───
@@ -561,11 +790,13 @@
 
     // Charts page
     initChartsPage();
+    initPresets();
 
     // Alumni page
     initAlumniPage();
 
     // Download buttons
     initDownloadButtons();
+    initExportButtons();
   });
 })();

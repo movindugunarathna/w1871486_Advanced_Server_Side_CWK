@@ -186,7 +186,10 @@ var options = {
       { name: 'Profile', description: 'Alumni profile CRUD including degrees, certifications, licences, courses, and employment' },
       { name: 'Bidding', description: 'Blind bidding system for the Alumni of the Day slot' },
       { name: 'Developer', description: 'API key management for developer accounts' },
-      { name: 'Public', description: 'Public Alumni of the Day endpoint (requires API key)' }
+      { name: 'Public', description: 'Public Alumni of the Day endpoint (requires API key)' },
+      { name: 'Analytics', description: 'Aggregated intelligence endpoints (requires read:analytics scope)' },
+      { name: 'Alumni Browse', description: 'Browse and filter alumni profiles (requires read:alumni scope)' },
+      { name: 'Dashboard', description: 'Server-rendered web client routes (session-authenticated)' }
     ]
   },
   apis: ['./controllers/*/index.js']

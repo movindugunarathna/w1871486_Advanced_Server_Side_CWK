@@ -20,7 +20,12 @@
           <li class="nav-item"><a class="nav-link" href="/dashboard">Overview</a></li>
           <li class="nav-item"><a class="nav-link" href="/dashboard/charts">Charts</a></li>
           <li class="nav-item"><a class="nav-link" href="/dashboard/alumni">Alumni</a></li>
-          <li class="nav-item"><a class="nav-link text-warning" href="/dashboard/logout">Logout</a></li>
+          <li class="nav-item">
+            <form method="POST" action="/dashboard/logout" class="d-inline m-0 p-0">
+              <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
+              <button type="submit" class="btn btn-link nav-link text-warning p-0" id="logoutBtn">Logout</button>
+            </form>
+          </li>
         </ul>
       </div>
     </div>

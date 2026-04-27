@@ -47,6 +47,24 @@ exports.apiLimiter = rateLimit({
   legacyHeaders: false
 });
 
+// Analytics API: 60 requests per 15 minutes per IP
+exports.analyticsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { success: false, message: 'Analytics rate limit exceeded. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Export routes: 10 requests per 15 minutes per IP
+exports.exportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Export rate limit exceeded. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // General: 200 per 15 minutes per IP
 exports.generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

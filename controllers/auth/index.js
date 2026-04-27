@@ -4,75 +4,46 @@ var express = require('express');
 var router = express.Router();
 var bcrypt = require('bcryptjs');
 var crypto = require('crypto');
-var nodemailer = require('nodemailer');
 
 var { User, Profile, sequelize } = require('../../models');
 var { registerRules, loginRules, forgotPasswordRules, resetPasswordRules, validate } = require('../../middleware/validators');
 var env = require('../../config/env');
-var { forgotPasswordLimiter } = require('../../middleware/rateLimiter');
+var { forgotPasswordLimiter, loginLimiter } = require('../../middleware/rateLimiter');
 var { isAuthenticated } = require('../../middleware/auth');
+var emailUtil = require('../../utils/email');
 
 exports.name = 'auth';
 exports.prefix = '/api/auth';
 exports.router = router;
 
-// ─── Email helper ───
-
-function canSendEmail() {
-  return !!(env.email.user && env.email.pass);
-}
-
-function createTransporter() {
-  return nodemailer.createTransport({
-    host: env.email.host,
-    port: env.email.port,
-    auth: {
-      user: env.email.user,
-      pass: env.email.pass
-    }
-  });
-}
-
-function sendEmailWithFallback(mailOptions, fallbackLink, logLabel) {
-  if (!canSendEmail()) {
-    console.log(logLabel + ': ' + fallbackLink);
-    return Promise.resolve({
-      sent: false,
-      previewLink: fallbackLink
-    });
-  }
-
-  var transporter = createTransporter();
-  return transporter.sendMail(mailOptions).then(function(info) {
-    return {
-      sent: true,
-      previewLink: nodemailer.getTestMessageUrl(info) || null
-    };
-  });
-}
+// ─── Email helpers (delegate to utils/email.js which supports Ethereal) ───
 
 function sendVerificationEmail(email, token) {
   var link = env.baseUrl + '/api/auth/verify-email?token=' + token;
-  return sendEmailWithFallback({
-    from: env.email.from,
-    to: email,
-    subject: 'Verify your Eastminster Alumni account',
-    html: '<p>Welcome! Please verify your email by clicking the link below:</p>' +
-          '<p><a href="' + link + '">' + link + '</a></p>' +
-          '<p>This link expires in 24 hours.</p>'
-  }, link, 'Verification link');
+  var html = '<p>Welcome! Please verify your Eastminster Alumni account by clicking the link below:</p>' +
+             '<p><a href="' + link + '">' + link + '</a></p>' +
+             '<p>This link expires in 24 hours.</p>';
+  return emailUtil.sendEmail(email, 'Verify your Eastminster Alumni account', html)
+    .then(function() { return { sent: true }; })
+    .catch(function(err) {
+      console.error('[Verification email failed]', err.message);
+      console.log('Verification link (fallback):', link);
+      return { sent: false, previewLink: link };
+    });
 }
 
 function sendPasswordResetEmail(email, token) {
-  var link = env.baseUrl + '/#reset-password?token=' + token;
-  return sendEmailWithFallback({
-    from: env.email.from,
-    to: email,
-    subject: 'Reset your Eastminster Alumni password',
-    html: '<p>You requested a password reset. Click the link below (expires in 1 hour):</p>' +
-          '<p><a href="' + link + '">' + link + '</a></p>' +
-          '<p>If you did not request this, please ignore this email.</p>'
-  }, link, 'Password reset link');
+  var link = env.baseUrl + '/api/auth/reset-password?token=' + token;
+  var html = '<p>You requested a password reset. Click the link below (expires in 1 hour):</p>' +
+             '<p><a href="' + link + '">' + link + '</a></p>' +
+             '<p>If you did not request this, please ignore this email.</p>';
+  return emailUtil.sendEmail(email, 'Reset your Eastminster Alumni password', html)
+    .then(function() { return { sent: true }; })
+    .catch(function(err) {
+      console.error('[Reset email failed]', err.message);
+      console.log('Reset link (fallback):', link);
+      return { sent: false, previewLink: link };
+    });
 }
 
 function hashResetToken(token) {
@@ -259,44 +230,35 @@ router.post('/register', registerRules, validate, function(req, res) {
       var expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       return bcrypt.hash(password, 12).then(function(hashedPassword) {
-        return User.create({
-          email: email,
-          password: hashedPassword,
-          role: 'alumnus',
-          isVerified: false,
-          // Persist only the hashed token for security.
-          verificationToken: hashedVerificationToken,
-          verificationTokenExpiry: expiry
-        });
-      }).then(function(user) {
-        return Profile.create({
-          userId: user.id,
-          firstName: firstName,
-          lastName: lastName
-        }).then(function() {
-          return sendVerificationEmail(email, token);
-        }).then(function(emailResult) {
-          var response = {
-            success: true,
-            message: 'Registration successful! Please check your email to verify your account.'
-          };
-
-          if (!emailResult.sent) {
-            response.message = 'Registration successful! Email delivery is not configured, so use the verification link returned below.';
-            response.verificationLink = emailResult.previewLink;
-          } else if (emailResult.previewLink) {
-            response.emailPreviewUrl = emailResult.previewLink;
-          }
-
-          res.status(201).json(response);
-        }).catch(function(err) {
-          console.error('Email send failed:', err.message);
-          res.status(201).json({
-            success: true,
-            message: 'Registration successful, but sending the verification email failed.',
-            verificationLink: env.baseUrl + '/api/auth/verify-email?token=' + token
+        // Wrap User + Profile creation in a transaction so both succeed or both roll back.
+        return sequelize.transaction(function(t) {
+          return User.create({
+            email: email,
+            password: hashedPassword,
+            role: 'alumnus',
+            isVerified: false,
+            verificationToken: hashedVerificationToken,
+            verificationTokenExpiry: expiry
+          }, { transaction: t }).then(function(user) {
+            return Profile.create({
+              userId: user.id,
+              firstName: firstName,
+              lastName: lastName
+            }, { transaction: t });
           });
         });
+      }).then(function() {
+        return sendVerificationEmail(email, token);
+      }).then(function(emailResult) {
+        var response = {
+          success: true,
+          message: 'Registration successful! Please check your email to verify your account.'
+        };
+        if (!emailResult.sent && emailResult.previewLink) {
+          response.message = 'Registration successful! Email delivery is not configured. Use the verification link below.';
+          response.verificationLink = emailResult.previewLink;
+        }
+        res.status(201).json(response);
       });
     })
     .catch(function(err) {
@@ -439,14 +401,17 @@ router.get('/verify-email', function(req, res) {
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
  */
-router.post('/login', loginRules, validate, function(req, res) {
+router.post('/login', loginLimiter, loginRules, validate, function(req, res) {
   var email = req.body.email;
   var password = req.body.password;
 
   // Normalize so login works consistently.
   email = email.toLowerCase();
 
-  User.findOne({ where: { email: email } })
+  User.findOne({
+    where: { email: email },
+    include: [{ model: Profile, attributes: ['firstName', 'lastName'] }]
+  })
     .then(function(user) {
       if (!user) {
         return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -470,7 +435,12 @@ router.post('/login', loginRules, validate, function(req, res) {
           res.json({
             success: true,
             message: 'Logged in successfully',
-            data: { id: user.id, email: user.email, role: user.role }
+            data: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              firstName: user.Profile ? user.Profile.firstName : null
+            }
           });
         });
       });

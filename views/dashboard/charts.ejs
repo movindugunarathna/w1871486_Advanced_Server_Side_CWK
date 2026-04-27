@@ -19,6 +19,13 @@
   <div class="col-md-2">
     <button type="reset" class="btn btn-outline-secondary w-100" id="clearFilters">Clear</button>
   </div>
+  <div class="col-12 d-flex gap-2 mt-1">
+    <button type="button" class="btn btn-sm btn-outline-info" id="savePresetBtn">Save Preset</button>
+    <select class="form-select form-select-sm w-auto" id="presetSelect">
+      <option value="">Load saved preset…</option>
+    </select>
+    <button type="button" class="btn btn-sm btn-outline-danger" id="deletePresetBtn">Delete</button>
+  </div>
 </form>
 
 <div class="row g-4">
@@ -26,7 +33,11 @@
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center">
         <strong>Top 10 Certifications</strong>
-        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="certifications">PNG</button>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary download-chart-btn" data-chart="certifications">PNG</button>
+          <button class="btn btn-outline-success export-csv" data-endpoint="/dashboard/proxy/analytics/export/skills-gap?format=csv" data-filename="skills-gap.csv">CSV</button>
+          <button class="btn btn-outline-danger export-pdf" data-endpoint="/dashboard/proxy/analytics/export/skills-gap?format=pdf" data-filename="skills-gap.pdf">PDF</button>
+        </div>
       </div>
       <div class="card-body chart-container">
         <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -39,7 +50,11 @@
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center">
         <strong>Top 10 Professional Courses</strong>
-        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="courses">PNG</button>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary download-chart-btn" data-chart="courses">PNG</button>
+          <button class="btn btn-outline-success export-csv" data-endpoint="/dashboard/proxy/analytics/export/skills-gap?format=csv" data-filename="skills-gap.csv">CSV</button>
+          <button class="btn btn-outline-danger export-pdf" data-endpoint="/dashboard/proxy/analytics/export/skills-gap?format=pdf" data-filename="skills-gap.pdf">PDF</button>
+        </div>
       </div>
       <div class="card-body chart-container">
         <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -52,7 +67,11 @@
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center">
         <strong>Employment by Sector</strong>
-        <button class="btn btn-sm btn-outline-secondary download-chart-btn" data-chart="sector">PNG</button>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary download-chart-btn" data-chart="sector">PNG</button>
+          <button class="btn btn-outline-success export-csv" data-endpoint="/dashboard/proxy/analytics/export/employment?format=csv" data-filename="employment-by-sector.csv">CSV</button>
+          <button class="btn btn-outline-danger export-pdf" data-endpoint="/dashboard/proxy/analytics/export/employment?format=pdf" data-filename="employment-by-sector.pdf">PDF</button>
+        </div>
       </div>
       <div class="card-body chart-container">
         <div class="spinner-border text-primary chart-spinner" role="status"><span class="visually-hidden">Loading...</span></div>
