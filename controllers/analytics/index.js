@@ -922,7 +922,7 @@ router.get('/profile-completion-rate', apiKeyAuth, hasPermission('read:analytics
  *       401:
  *         description: Missing or invalid API key
  *       403:
- *         description: Insufficient permissions. Required scope: read:analytics
+ *         description: "Insufficient permissions. Required scope: read:analytics"
  *       429:
  *         description: Export rate limit exceeded (10 per 15 min)
  *       500:
@@ -1020,7 +1020,7 @@ router.get('/export/skills-gap', apiKeyAuth, hasPermission('read:analytics'), ex
  *       401:
  *         description: Missing or invalid API key
  *       403:
- *         description: Insufficient permissions. Required scope: read:analytics
+ *         description: "Insufficient permissions. Required scope: read:analytics"
  *       429:
  *         description: Export rate limit exceeded (10 per 15 min)
  *       500:

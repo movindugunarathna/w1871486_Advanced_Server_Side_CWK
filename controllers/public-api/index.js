@@ -447,7 +447,7 @@ router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules
  *       401:
  *         description: Missing or invalid API key
  *       403:
- *         description: Insufficient permissions. Required scope: read:alumni
+ *         description: "Insufficient permissions. Required scope: read:alumni"
  *       429:
  *         description: Export rate limit exceeded (10 per 15 min)
  *       500:

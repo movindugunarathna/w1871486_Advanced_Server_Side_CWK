@@ -147,6 +147,9 @@ Authorization: <session cookie>
 # 3. Add the key to .env
 ANALYTICS_API_KEY=<paste key here>
 
+# Optional for demos: serve dashboard analytics from local dummy JSON
+DASHBOARD_DEMO_MODE=true
+
 # 4. Restart the server
 npm start
 
@@ -154,6 +157,8 @@ npm start
 http://localhost:5000/dashboard
 # Register a new dashboard account or use any verified user account
 ```
+
+If `DASHBOARD_DEMO_MODE=true`, dashboard analytics endpoints are served from `analytics-dashboard-demo-data.json`, so charts can be demonstrated without relying on live aggregated DB data.
 
 ---
 
@@ -179,6 +184,7 @@ http://localhost:5000/dashboard
 | `UNIVERSITY_DOMAIN` | Allowed email domain | `@eastminster.ac.uk` |
 | `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:5000` |
 | `ANALYTICS_API_KEY` | API key for dashboard proxy | *(generate via API)* |
+| `DASHBOARD_DEMO_MODE` | Serve dashboard analytics from local demo JSON (`analytics-dashboard-demo-data.json`) | `false` |
 | `AR_APP_API_KEY` | API key for AR App | *(generate via API)* |
 
 > **Email:** Leave `EMAIL_USER` and `EMAIL_PASS` empty for development — the app automatically creates an Ethereal test account and logs preview URLs to the console.

@@ -1,0 +1,170 @@
+{
+  "description": "Demo dataset for analytics dashboard (overview + charts).",
+  "generatedAt": "2026-04-27",
+  "filtersUsed": {
+    "programme": "",
+    "graduationYear": "",
+    "industrySector": ""
+  },
+  "endpoints": {
+    "/api/analytics/overview": {
+      "success": true,
+      "data": {
+        "totalAlumni": 248,
+        "profilesComplete": 197,
+        "totalDegrees": 322,
+        "totalCertifications": 684,
+        "totalEmploymentRecords": 431,
+        "featuredAlumniTotal": 59,
+        "mostRecentFeatured": {
+          "firstName": "Aisha",
+          "lastName": "Fernando",
+          "featuredDate": "2026-04-25"
+        }
+      }
+    },
+    "/api/analytics/skills-gap": {
+      "success": true,
+      "data": {
+        "certifications": [
+          { "name": "AWS Certified Cloud Practitioner", "issuingBody": "Amazon", "count": 52 },
+          { "name": "Google Data Analytics", "issuingBody": "Google", "count": 47 },
+          { "name": "Microsoft Azure Fundamentals", "issuingBody": "Microsoft", "count": 45 },
+          { "name": "Certified ScrumMaster", "issuingBody": "Scrum Alliance", "count": 41 },
+          { "name": "CCNA", "issuingBody": "Cisco", "count": 37 },
+          { "name": "Oracle Java SE 11", "issuingBody": "Oracle", "count": 33 },
+          { "name": "CompTIA Security+", "issuingBody": "CompTIA", "count": 30 },
+          { "name": "ITIL Foundation", "issuingBody": "AXELOS", "count": 28 },
+          { "name": "PMP", "issuingBody": "PMI", "count": 24 },
+          { "name": "Tableau Desktop Specialist", "issuingBody": "Tableau", "count": 22 }
+        ],
+        "professionalCourses": [
+          { "name": "Advanced SQL for Analysts", "provider": "Coursera", "count": 56 },
+          { "name": "React and TypeScript Bootcamp", "provider": "Udemy", "count": 49 },
+          { "name": "Python for Data Science", "provider": "edX", "count": 44 },
+          { "name": "Product Management Essentials", "provider": "LinkedIn Learning", "count": 39 },
+          { "name": "Kubernetes for Developers", "provider": "Pluralsight", "count": 35 },
+          { "name": "Machine Learning Foundations", "provider": "Coursera", "count": 32 },
+          { "name": "Power BI Dashboard Design", "provider": "Udemy", "count": 29 },
+          { "name": "Agile Delivery in Practice", "provider": "FutureLearn", "count": 27 },
+          { "name": "Technical Writing for Engineers", "provider": "Udacity", "count": 21 },
+          { "name": "Cybersecurity Incident Response", "provider": "SANS", "count": 18 }
+        ],
+        "topSkillGaps": [
+          { "skill": "Advanced SQL for Analysts", "type": "course", "source": "Coursera", "count": 56 },
+          { "skill": "AWS Certified Cloud Practitioner", "type": "certification", "source": "Amazon", "count": 52 },
+          { "skill": "React and TypeScript Bootcamp", "type": "course", "source": "Udemy", "count": 49 },
+          { "skill": "Google Data Analytics", "type": "certification", "source": "Google", "count": 47 },
+          { "skill": "Microsoft Azure Fundamentals", "type": "certification", "source": "Microsoft", "count": 45 },
+          { "skill": "Python for Data Science", "type": "course", "source": "edX", "count": 44 },
+          { "skill": "Certified ScrumMaster", "type": "certification", "source": "Scrum Alliance", "count": 41 },
+          { "skill": "Product Management Essentials", "type": "course", "source": "LinkedIn Learning", "count": 39 },
+          { "skill": "CCNA", "type": "certification", "source": "Cisco", "count": 37 },
+          { "skill": "Kubernetes for Developers", "type": "course", "source": "Pluralsight", "count": 35 }
+        ]
+      }
+    },
+    "/api/analytics/employment-by-sector": {
+      "success": true,
+      "data": {
+        "sectors": [
+          { "sector": "Software Engineering", "alumniCount": 61, "percentage": 24.6 },
+          { "sector": "Data & AI", "alumniCount": 42, "percentage": 16.9 },
+          { "sector": "Finance Technology", "alumniCount": 33, "percentage": 13.3 },
+          { "sector": "Telecommunications", "alumniCount": 27, "percentage": 10.9 },
+          { "sector": "Healthcare IT", "alumniCount": 24, "percentage": 9.7 },
+          { "sector": "Consulting", "alumniCount": 21, "percentage": 8.5 },
+          { "sector": "Education Technology", "alumniCount": 17, "percentage": 6.9 },
+          { "sector": "Cybersecurity", "alumniCount": 13, "percentage": 5.2 },
+          { "sector": "E-commerce", "alumniCount": 7, "percentage": 2.8 },
+          { "sector": "Government Digital Services", "alumniCount": 3, "percentage": 1.2 }
+        ]
+      }
+    },
+    "/api/analytics/job-titles": {
+      "success": true,
+      "data": {
+        "jobTitles": [
+          { "title": "Software Engineer", "count": 39 },
+          { "title": "Data Analyst", "count": 31 },
+          { "title": "Business Analyst", "count": 28 },
+          { "title": "DevOps Engineer", "count": 24 },
+          { "title": "Full Stack Developer", "count": 23 },
+          { "title": "Product Manager", "count": 20 },
+          { "title": "Cloud Engineer", "count": 18 },
+          { "title": "QA Engineer", "count": 16 },
+          { "title": "Solutions Architect", "count": 13 },
+          { "title": "Security Analyst", "count": 12 },
+          { "title": "Systems Analyst", "count": 10 },
+          { "title": "Machine Learning Engineer", "count": 9 },
+          { "title": "Technical Consultant", "count": 8 },
+          { "title": "Project Coordinator", "count": 7 },
+          { "title": "UI/UX Engineer", "count": 6 }
+        ]
+      }
+    },
+    "/api/analytics/top-employers": {
+      "success": true,
+      "data": {
+        "employers": [
+          { "company": "TechNova Labs", "alumniCount": 18 },
+          { "company": "BlueOrbit Solutions", "alumniCount": 16 },
+          { "company": "Apex FinServe", "alumniCount": 14 },
+          { "company": "Nimbus Digital", "alumniCount": 12 },
+          { "company": "Crestline Systems", "alumniCount": 10 },
+          { "company": "InnoHealth Global", "alumniCount": 9 }
+        ]
+      }
+    },
+    "/api/analytics/career-trends": {
+      "success": true,
+      "data": {
+        "certificationsByMonth": [
+          { "month": "2025-05", "count": 18 },
+          { "month": "2025-06", "count": 22 },
+          { "month": "2025-07", "count": 19 },
+          { "month": "2025-08", "count": 24 },
+          { "month": "2025-09", "count": 27 },
+          { "month": "2025-10", "count": 26 },
+          { "month": "2025-11", "count": 29 },
+          { "month": "2025-12", "count": 21 },
+          { "month": "2026-01", "count": 25 },
+          { "month": "2026-02", "count": 28 },
+          { "month": "2026-03", "count": 31 },
+          { "month": "2026-04", "count": 30 }
+        ],
+        "featuredAlumniByMonth": [
+          { "month": "2025-05", "count": 3 },
+          { "month": "2025-06", "count": 4 },
+          { "month": "2025-07", "count": 5 },
+          { "month": "2025-08", "count": 4 },
+          { "month": "2025-09", "count": 6 },
+          { "month": "2025-10", "count": 5 },
+          { "month": "2025-11", "count": 6 },
+          { "month": "2025-12", "count": 4 },
+          { "month": "2026-01", "count": 5 },
+          { "month": "2026-02", "count": 6 },
+          { "month": "2026-03", "count": 6 },
+          { "month": "2026-04", "count": 5 }
+        ]
+      }
+    },
+    "/api/analytics/profile-completion-rate": {
+      "success": true,
+      "data": {
+        "complete": 197,
+        "incomplete": 51,
+        "completionRate": 79.4,
+        "breakdown": {
+          "hasFirstName": 248,
+          "hasLastName": 248,
+          "hasBio": 221,
+          "hasLinkedIn": 205,
+          "hasImage": 189,
+          "hasDegree": 232,
+          "hasEmployment": 214
+        }
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ var csrf = require('csurf');
 var { User, Profile } = require('../../models');
 var env = require('../../config/env');
 var emailUtil = require('../../utils/email');
+var demoAnalyticsData = require('../../analytics-dashboard-demo-data.json');
 
 exports.name = 'dashboard';
 exports.prefix = '/dashboard';
@@ -17,6 +18,7 @@ exports.router = router;
 
 var API_KEY = process.env.ANALYTICS_API_KEY || '';
 var BASE_PORT = process.env.PORT || 5000;
+var DASHBOARD_DEMO_MODE = String(process.env.DASHBOARD_DEMO_MODE || '').toLowerCase() === 'true';
 
 var csrfProtection = csrf({ cookie: false });
 
@@ -150,12 +152,62 @@ function proxyDownload(apiPath, query, res) {
 }
 
 function proxyAnalytics(endpoint, req, res) {
+  disableProxyCaching(req, res);
+
+  if (DASHBOARD_DEMO_MODE) {
+    var demoResponse = getDemoAnalyticsResponse('/api/analytics/' + endpoint, req);
+    if (!demoResponse) {
+      return res.status(404).json({ success: false, message: 'Demo data not found for endpoint: ' + endpoint });
+    }
+    return res.json(demoResponse);
+  }
+
   proxyGet('/api/analytics/' + endpoint, req.query, function(err, data, status) {
     if (err) {
       return res.status(500).json({ success: false, message: 'Proxy error' });
     }
     res.status(status).json(data);
   });
+}
+
+function getDemoAnalyticsResponse(endpoint, req) {
+  var endpoints = (demoAnalyticsData && demoAnalyticsData.endpoints) ? demoAnalyticsData.endpoints : null;
+  var payload = endpoints ? endpoints[endpoint] : null;
+  var parsedLimit;
+  var limitedEmployers;
+
+  if (!payload) {
+    return null;
+  }
+
+  if (endpoint === '/api/analytics/top-employers') {
+    parsedLimit = req && req.query && req.query.limit !== undefined ? Number(req.query.limit) : 10;
+    if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+      return {
+        success: false,
+        message: 'limit must be an integer between 1 and 50'
+      };
+    }
+    limitedEmployers = (payload.data && payload.data.employers ? payload.data.employers : []).slice(0, parsedLimit);
+    return {
+      success: true,
+      data: {
+        employers: limitedEmployers
+      }
+    };
+  }
+
+  return payload;
+}
+
+function disableProxyCaching(req, res) {
+  // Remove client validators so Express won't short-circuit with 304 for dashboard analytics.
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
 }
 
 // ─── Auth pages (CSRF protected) ───
@@ -425,6 +477,12 @@ router.post('/reset-password', csrfProtection, function(req, res) {
 // ─── Protected pages ───
 
 router.get('/', isDashboardAuthenticated, function(req, res) {
+  if (DASHBOARD_DEMO_MODE) {
+    var demoOverview = getDemoAnalyticsResponse('/api/analytics/overview', req);
+    var demoOverviewData = demoOverview && demoOverview.data ? demoOverview.data : null;
+    return res.render('dashboard/index', { overview: demoOverviewData });
+  }
+
   proxyGet('/api/analytics/overview', {}, function(err, data) {
     var overview = (data && data.data) ? data.data : null;
     res.render('dashboard/index', { overview: overview });

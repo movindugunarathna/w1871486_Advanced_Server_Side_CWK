@@ -33,7 +33,9 @@
         }
       });
     }
-    return fetch(url.toString()).then(function(res) {
+    // Add a cache-busting timestamp so dashboard chart calls always hit fresh data.
+    url.searchParams.set('_t', Date.now());
+    return fetch(url.toString(), { cache: 'no-store' }).then(function(res) {
       if (!res.ok) throw new Error('API error: ' + res.status);
       return res.json();
     });
