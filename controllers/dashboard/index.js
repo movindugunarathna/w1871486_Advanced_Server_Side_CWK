@@ -6,6 +6,7 @@ var http = require('http');
 var bcrypt = require('bcryptjs');
 var crypto = require('crypto');
 var csrf = require('csurf');
+var PDFDocument = require('pdfkit');
 
 var { User, Profile } = require('../../models');
 var env = require('../../config/env');
@@ -208,6 +209,223 @@ function disableProxyCaching(req, res) {
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
   res.set('Surrogate-Control', 'no-store');
+}
+
+function getExportDateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function escapeCsv(value) {
+  var str = value == null ? '' : String(value);
+  if (/[",\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function toCsv(fields, rows) {
+  var header = fields.join(',');
+  var body = rows.map(function(row) {
+    return fields.map(function(field) {
+      return escapeCsv(row[field]);
+    }).join(',');
+  }).join('\n');
+  return header + '\n' + body;
+}
+
+function sendDemoSkillsGapExport(req, res) {
+  var format = String(req.query.format || '').toLowerCase();
+  var payload = getDemoAnalyticsResponse('/api/analytics/skills-gap', req);
+  var data = payload && payload.data ? payload.data : {};
+  var certifications = data.certifications || [];
+  var courses = data.professionalCourses || [];
+  var exportDate = getExportDateStamp();
+
+  if (format !== 'csv' && format !== 'pdf') {
+    return res.status(400).json({ success: false, message: 'format must be csv or pdf' });
+  }
+
+  if (format === 'csv') {
+    var rows = certifications.map(function(item) {
+      return { type: 'certification', name: item.name, source: item.issuingBody || '', count: item.count || 0 };
+    }).concat(
+      courses.map(function(item) {
+        return { type: 'course', name: item.name, source: item.provider || '', count: item.count || 0 };
+      })
+    );
+    var csv = toCsv(['type', 'name', 'source', 'count'], rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="skills-gap-' + exportDate + '.csv"');
+    return res.send(csv);
+  }
+
+  var doc = new PDFDocument({ margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="skills-gap-' + exportDate + '.pdf"');
+  doc.pipe(res);
+  doc.fontSize(18).text('Skills Gap Analysis Report (Demo)', { align: 'center' });
+  doc.fontSize(10).text('Generated: ' + new Date().toLocaleDateString(), { align: 'center' });
+  doc.moveDown();
+  doc.fontSize(14).text('Top Certifications');
+  doc.moveDown(0.5);
+  certifications.forEach(function(c, i) {
+    doc.fontSize(10).text((i + 1) + '. ' + c.name + ' (' + (c.issuingBody || 'Unknown') + ') - ' + (c.count || 0));
+  });
+  doc.moveDown();
+  doc.fontSize(14).text('Top Professional Courses');
+  doc.moveDown(0.5);
+  courses.forEach(function(c, i) {
+    doc.fontSize(10).text((i + 1) + '. ' + c.name + ' (' + (c.provider || 'Unknown') + ') - ' + (c.count || 0));
+  });
+  doc.end();
+}
+
+function sendDemoEmploymentExport(req, res) {
+  var format = String(req.query.format || '').toLowerCase();
+  var payload = getDemoAnalyticsResponse('/api/analytics/employment-by-sector', req);
+  var data = payload && payload.data ? payload.data : {};
+  var sectors = data.sectors || [];
+  var exportDate = getExportDateStamp();
+
+  if (format !== 'csv' && format !== 'pdf') {
+    return res.status(400).json({ success: false, message: 'format must be csv or pdf' });
+  }
+
+  if (format === 'csv') {
+    var csv = toCsv(['sector', 'alumniCount', 'percentage'], sectors);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="employment-by-sector-' + exportDate + '.csv"');
+    return res.send(csv);
+  }
+
+  var doc = new PDFDocument({ margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="employment-by-sector-' + exportDate + '.pdf"');
+  doc.pipe(res);
+  doc.fontSize(18).text('Employment by Sector Report (Demo)', { align: 'center' });
+  doc.fontSize(10).text('Generated: ' + new Date().toLocaleDateString(), { align: 'center' });
+  doc.moveDown();
+  sectors.forEach(function(item, i) {
+    doc.fontSize(10).text(
+      (i + 1) + '. ' + (item.sector || 'Unknown') + ' - ' +
+      (item.alumniCount || 0) + ' alumni (' + (item.percentage || 0) + '%)'
+    );
+  });
+  doc.end();
+}
+
+function getDemoAlumniProfiles() {
+  return [
+    {
+      id: 1,
+      firstName: 'Aisha',
+      lastName: 'Fernando',
+      biography: 'Data specialist focused on alumni employability analytics.',
+      linkedInUrl: 'https://www.linkedin.com/in/aisha-fernando',
+      Degrees: [{ name: 'BSc Computer Science', university: 'Eastminster University', completionDate: '2020-06-15' }],
+      Employments: [{ company: 'TechNova Labs', role: 'Data Analyst', startDate: '2021-02-01', endDate: null }],
+      Certifications: [{ name: 'Google Data Analytics', issuingBody: 'Google' }],
+      Licences: [],
+      ProfessionalCourses: [{ name: 'Advanced SQL for Analysts', provider: 'Coursera' }]
+    },
+    {
+      id: 2,
+      firstName: 'Kamal',
+      lastName: 'Perera',
+      biography: 'Cloud engineer working on scalable backend systems.',
+      linkedInUrl: 'https://www.linkedin.com/in/kamal-perera',
+      Degrees: [{ name: 'BEng Software Engineering', university: 'Eastminster University', completionDate: '2019-07-20' }],
+      Employments: [{ company: 'BlueOrbit Solutions', role: 'Cloud Engineer', startDate: '2020-04-01', endDate: null }],
+      Certifications: [{ name: 'AWS Certified Cloud Practitioner', issuingBody: 'Amazon' }],
+      Licences: [],
+      ProfessionalCourses: [{ name: 'Kubernetes for Developers', provider: 'Pluralsight' }]
+    },
+    {
+      id: 3,
+      firstName: 'Nimal',
+      lastName: 'Jayasuriya',
+      biography: 'Product and delivery lead in fintech.',
+      linkedInUrl: 'https://www.linkedin.com/in/nimal-jayasuriya',
+      Degrees: [{ name: 'BSc Information Systems', university: 'Eastminster University', completionDate: '2018-05-30' }],
+      Employments: [{ company: 'Apex FinServe', role: 'Product Manager', startDate: '2022-01-10', endDate: null }],
+      Certifications: [{ name: 'Certified ScrumMaster', issuingBody: 'Scrum Alliance' }],
+      Licences: [],
+      ProfessionalCourses: [{ name: 'Product Management Essentials', provider: 'LinkedIn Learning' }]
+    },
+    {
+      id: 4,
+      firstName: 'Sofia',
+      lastName: 'Dissanayake',
+      biography: 'Full stack developer building internal analytics portals.',
+      linkedInUrl: 'https://www.linkedin.com/in/sofia-dissanayake',
+      Degrees: [{ name: 'BSc Software Engineering', university: 'Eastminster University', completionDate: '2021-11-12' }],
+      Employments: [{ company: 'Nimbus Digital', role: 'Full Stack Developer', startDate: '2022-06-01', endDate: null }],
+      Certifications: [{ name: 'Microsoft Azure Fundamentals', issuingBody: 'Microsoft' }],
+      Licences: [],
+      ProfessionalCourses: [{ name: 'React and TypeScript Bootcamp', provider: 'Udemy' }]
+    }
+  ];
+}
+
+function sendDemoAlumni(req, res) {
+  var allProfiles = getDemoAlumniProfiles();
+  var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  var limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+  var start = (page - 1) * limit;
+  var alumni = allProfiles.slice(start, start + limit);
+
+  return res.json({
+    success: true,
+    data: {
+      alumni: alumni,
+      pagination: {
+        total: allProfiles.length,
+        page: page,
+        limit: limit,
+        totalPages: Math.max(1, Math.ceil(allProfiles.length / limit))
+      },
+      filters: {
+        programme: String(req.query.programme || ''),
+        graduationYear: String(req.query.graduationYear || ''),
+        industrySector: String(req.query.industrySector || '')
+      }
+    }
+  });
+}
+
+function sendDemoAlumniExport(req, res) {
+  var format = String(req.query.format || '').toLowerCase();
+  var exportDate = getExportDateStamp();
+  var rows;
+  var csv;
+
+  if (format !== 'csv') {
+    return res.status(400).json({ success: false, message: 'format must be csv' });
+  }
+
+  rows = getDemoAlumniProfiles().map(function(profile) {
+    var degree = profile.Degrees && profile.Degrees[0] ? profile.Degrees[0] : {};
+    var employment = profile.Employments && profile.Employments[0] ? profile.Employments[0] : {};
+    return {
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      programme: degree.name || '',
+      university: degree.university || '',
+      graduationYear: degree.completionDate ? new Date(degree.completionDate).getFullYear() : '',
+      currentEmployer: employment.company || '',
+      currentRole: employment.role || '',
+      certificationsCount: (profile.Certifications || []).length,
+      linkedInUrl: profile.linkedInUrl || ''
+    };
+  });
+
+  csv = toCsv(
+    ['firstName', 'lastName', 'programme', 'university', 'graduationYear', 'currentEmployer', 'currentRole', 'certificationsCount', 'linkedInUrl'],
+    rows
+  );
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="alumni-export-' + exportDate + '.csv"');
+  return res.send(csv);
 }
 
 // ─── Auth pages (CSRF protected) ───
@@ -528,6 +746,9 @@ router.get('/proxy/analytics/profile-completion-rate', isDashboardAuthenticated,
 });
 
 router.get('/proxy/alumni', isDashboardAuthenticated, function(req, res) {
+  if (DASHBOARD_DEMO_MODE) {
+    return sendDemoAlumni(req, res);
+  }
   proxyGet('/api/alumni', req.query, function(err, data, status) {
     if (err) {
       return res.status(500).json({ success: false, message: 'Proxy error' });
@@ -537,13 +758,22 @@ router.get('/proxy/alumni', isDashboardAuthenticated, function(req, res) {
 });
 
 router.get('/proxy/analytics/export/skills-gap', isDashboardAuthenticated, function(req, res) {
+  if (DASHBOARD_DEMO_MODE) {
+    return sendDemoSkillsGapExport(req, res);
+  }
   proxyDownload('/api/analytics/export/skills-gap', req.query, res);
 });
 
 router.get('/proxy/analytics/export/employment', isDashboardAuthenticated, function(req, res) {
+  if (DASHBOARD_DEMO_MODE) {
+    return sendDemoEmploymentExport(req, res);
+  }
   proxyDownload('/api/analytics/export/employment', req.query, res);
 });
 
 router.get('/proxy/alumni/export', isDashboardAuthenticated, function(req, res) {
+  if (DASHBOARD_DEMO_MODE) {
+    return sendDemoAlumniExport(req, res);
+  }
   proxyDownload('/api/alumni/export', req.query, res);
 });
