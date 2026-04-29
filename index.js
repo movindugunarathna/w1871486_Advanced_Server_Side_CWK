@@ -18,6 +18,7 @@ var swaggerSpec = require('./swagger/swagger');
 
 var { sequelize } = require('./models');
 var scheduler = require('./utils/scheduler');
+var ensureDatabaseExists = require('./config/ensureDatabase');
 
 var app = module.exports = express();
 
@@ -58,7 +59,7 @@ var sessionStore = new MySQLStore({
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'alumni_influencers',
+  database: process.env.DB_NAME || 'w1871486_alumni_influencers',
   // Keep server-side session expiry aligned with the cookie maxAge (inactivity timeout).
   expiration: 30 * 60 * 1000 // 30 minutes
 });
@@ -124,7 +125,11 @@ if (!module.parent) {
     console.warn('[WARN] ANALYTICS_API_KEY is not set — dashboard charts and exports will fail.');
   }
 
-  sequelize.authenticate()
+  ensureDatabaseExists()
+    .then(function() {
+      console.log('Database ensured: ' + (process.env.DB_NAME || 'w1871486_alumni_influencers'));
+      return sequelize.authenticate();
+    })
     .then(function() {
       console.log('MySQL connected via XAMPP');
       return sequelize.sync();
