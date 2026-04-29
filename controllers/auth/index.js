@@ -51,6 +51,23 @@ function hashResetToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function getValidResetTokenUser(token) {
+  var hashedToken = hashResetToken(token);
+
+  return User.findOne({ where: { resetPasswordToken: hashedToken } })
+    .then(function(user) {
+      if (user) return user;
+      // Backward compatibility for any legacy plaintext tokens.
+      return User.findOne({ where: { resetPasswordToken: token } });
+    })
+    .then(function(user) {
+      if (!user || !user.resetPasswordTokenExpiry || new Date() > user.resetPasswordTokenExpiry) {
+        return null;
+      }
+      return user;
+    });
+}
+
 function invalidateUserSessions(userId) {
   // express-mysql-session stores the session object as JSON in the `data` column.
   // We delete any session whose stored JSON contains the matching userId.
@@ -315,18 +332,23 @@ router.get('/verify-email', function(req, res) {
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired verification token' });
       }
-      if (user.isVerified) {
-        return res.status(400).json({ success: false, message: 'Email already verified' });
-      }
       if (new Date() > user.verificationTokenExpiry) {
         return res.status(400).json({ success: false, message: 'Verification token has expired' });
       }
-
-      return user.update({
-        isVerified: true,
-        verificationToken: null,
-        verificationTokenExpiry: null
-      }).then(function() {
+      return User.update(
+        { isVerified: true, verificationToken: null, verificationTokenExpiry: null },
+        {
+          where: {
+            id: user.id,
+            verificationToken: hashedVerificationToken,
+            isVerified: false
+          }
+        }
+      ).then(function(result) {
+        var updatedRows = result && result[0] ? result[0] : 0;
+        if (updatedRows === 0) {
+          return res.status(400).json({ success: false, message: 'Verification link has already been used' });
+        }
         res.json({ success: true, message: 'Email verified successfully! You can now log in.' });
       });
     })
@@ -592,6 +614,39 @@ router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordRules, vali
     });
 });
 
+router.get('/reset-password', function(req, res) {
+  var token = String(req.query.token || '');
+  var replacementToken = crypto.randomBytes(32).toString('hex');
+  var replacementHashedToken = hashResetToken(replacementToken);
+
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'Reset token is required' });
+  }
+
+  getValidResetTokenUser(token)
+    .then(function(user) {
+      if (!user) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+      }
+
+      return User.update(
+        { resetPasswordToken: replacementHashedToken },
+        { where: { id: user.id, resetPasswordToken: user.resetPasswordToken } }
+      ).then(function(result) {
+        var updatedRows = result && result[0] ? result[0] : 0;
+        if (updatedRows === 0) {
+          return res.status(400).json({ success: false, message: 'Reset link has already been used' });
+        }
+
+        res.redirect('/#reset-password?token=' + encodeURIComponent(replacementToken));
+      });
+    })
+    .catch(function(err) {
+      console.error('Reset password link error:', err);
+      res.status(500).json({ success: false, message: 'Reset link processing failed. Please try again.' });
+    });
+});
+
 /**
  * @swagger
  * /api/auth/reset-password:
@@ -647,22 +702,10 @@ router.post('/reset-password', resetPasswordRules, validate, function(req, res) 
     return res.status(400).json({ success: false, message: 'Reset token is required' });
   }
 
-  var hashedToken = hashResetToken(token);
-
-  // Primary lookup: hashed token (secure storage).
-  // Backward compatibility: if an older account still has a plaintext reset token
-  // in `resetPasswordToken`, allow reset to complete.
-  User.findOne({ where: { resetPasswordToken: hashedToken } })
-    .then(function(user) {
-      if (user) return user;
-      return User.findOne({ where: { resetPasswordToken: token } });
-    })
+  getValidResetTokenUser(token)
     .then(function(user) {
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
-      }
-      if (new Date() > user.resetPasswordTokenExpiry) {
-        return res.status(400).json({ success: false, message: 'Reset token has expired' });
       }
 
       return bcrypt.hash(newPassword, 12).then(function(hashedPassword) {

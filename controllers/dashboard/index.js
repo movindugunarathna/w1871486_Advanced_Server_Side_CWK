@@ -574,17 +574,26 @@ router.get('/verify-email', function(req, res) {
       if (!user) {
         return res.render('dashboard/verify-email', { success: null, error: 'Invalid or expired verification link.' });
       }
-      if (user.isVerified) {
-        return res.render('dashboard/verify-email', { success: 'Email already verified. You can sign in.', error: null });
-      }
       if (new Date() > user.verificationTokenExpiry) {
         return res.render('dashboard/verify-email', { success: null, error: 'Verification link has expired. Please register again.' });
       }
 
-      return user.update({ isVerified: true, verificationToken: null, verificationTokenExpiry: null })
-        .then(function() {
-          res.render('dashboard/verify-email', { success: 'Email verified successfully! You can now sign in.', error: null });
-        });
+      return User.update(
+        { isVerified: true, verificationToken: null, verificationTokenExpiry: null },
+        {
+          where: {
+            id: user.id,
+            verificationToken: hashedToken,
+            isVerified: false
+          }
+        }
+      ).then(function(result) {
+        var updatedRows = result && result[0] ? result[0] : 0;
+        if (updatedRows === 0) {
+          return res.render('dashboard/verify-email', { success: null, error: 'Verification link has already been used.' });
+        }
+        res.render('dashboard/verify-email', { success: 'Email verified successfully! You can now sign in.', error: null });
+      });
     })
     .catch(function() {
       res.render('dashboard/verify-email', { success: null, error: 'Verification failed. Please try again.' });
@@ -646,8 +655,61 @@ router.post('/forgot-password', csrfProtection, function(req, res) {
 
 router.get('/reset-password', csrfProtection, function(req, res) {
   var token = String(req.query.token || '');
+  var hashedToken;
+  var replacementToken;
+  var replacementHashedToken;
   if (!token) return res.redirect('/dashboard/forgot-password');
-  res.render('dashboard/reset-password', { error: null, success: null, token: token, csrfToken: req.csrfToken() });
+
+  hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  replacementToken = crypto.randomBytes(32).toString('hex');
+  replacementHashedToken = crypto.createHash('sha256').update(replacementToken).digest('hex');
+
+  User.findOne({ where: { resetPasswordToken: hashedToken } })
+    .then(function(user) {
+      if (user) return user;
+      // Backward compatibility for legacy plaintext reset tokens.
+      return User.findOne({ where: { resetPasswordToken: token } });
+    })
+    .then(function(user) {
+      if (!user || !user.resetPasswordTokenExpiry || new Date() > user.resetPasswordTokenExpiry) {
+        return res.render('dashboard/reset-password', {
+          error: 'Invalid or expired reset link. Please request a new one.',
+          success: null,
+          token: '',
+          csrfToken: req.csrfToken()
+        });
+      }
+
+      return User.update(
+        { resetPasswordToken: replacementHashedToken },
+        { where: { id: user.id, resetPasswordToken: user.resetPasswordToken } }
+      ).then(function(result) {
+        var updatedRows = result && result[0] ? result[0] : 0;
+        if (updatedRows === 0) {
+          return res.render('dashboard/reset-password', {
+            error: 'This reset link has already been used. Please request a new one.',
+            success: null,
+            token: '',
+            csrfToken: req.csrfToken()
+          });
+        }
+
+        res.render('dashboard/reset-password', {
+          error: null,
+          success: null,
+          token: replacementToken,
+          csrfToken: req.csrfToken()
+        });
+      });
+    })
+    .catch(function() {
+      res.render('dashboard/reset-password', {
+        error: 'Reset link processing failed. Please try again.',
+        success: null,
+        token: '',
+        csrfToken: req.csrfToken()
+      });
+    });
 });
 
 router.post('/reset-password', csrfProtection, function(req, res) {
