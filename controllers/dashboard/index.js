@@ -434,7 +434,7 @@ router.get('/login', csrfProtection, function(req, res) {
   if (req.session && req.session.userId) {
     return res.redirect('/dashboard');
   }
-  res.render('dashboard/login', { error: null, csrfToken: req.csrfToken() });
+  res.render('dashboard/auth/login', { error: null, csrfToken: req.csrfToken() });
 });
 
 router.post('/login', csrfProtection, function(req, res) {
@@ -442,26 +442,26 @@ router.post('/login', csrfProtection, function(req, res) {
   var password = req.body.password || '';
 
   if (!email || !password) {
-    return res.render('dashboard/login', { error: 'Email and password are required', csrfToken: req.csrfToken() });
+    return res.render('dashboard/auth/login', { error: 'Email and password are required', csrfToken: req.csrfToken() });
   }
 
   User.findOne({ where: { email: email } })
     .then(function(user) {
       if (!user) {
-        return res.render('dashboard/login', { error: 'Invalid email or password', csrfToken: req.csrfToken() });
+        return res.render('dashboard/auth/login', { error: 'Invalid email or password', csrfToken: req.csrfToken() });
       }
 
       return bcrypt.compare(password, user.password).then(function(match) {
         if (!match) {
-          return res.render('dashboard/login', { error: 'Invalid email or password', csrfToken: req.csrfToken() });
+          return res.render('dashboard/auth/login', { error: 'Invalid email or password', csrfToken: req.csrfToken() });
         }
         if (!user.isVerified) {
-          return res.render('dashboard/login', { error: 'Please verify your email before logging in', csrfToken: req.csrfToken() });
+          return res.render('dashboard/auth/login', { error: 'Please verify your email before logging in', csrfToken: req.csrfToken() });
         }
 
         req.session.regenerate(function(err) {
           if (err) {
-            return res.render('dashboard/login', { error: 'Login failed. Please try again.', csrfToken: req.csrfToken() });
+            return res.render('dashboard/auth/login', { error: 'Login failed. Please try again.', csrfToken: req.csrfToken() });
           }
           req.session.userId = user.id;
           req.session.role = user.role;
@@ -470,7 +470,7 @@ router.post('/login', csrfProtection, function(req, res) {
       });
     })
     .catch(function() {
-      res.render('dashboard/login', { error: 'Login failed. Please try again.', csrfToken: req.csrfToken() });
+      res.render('dashboard/auth/login', { error: 'Login failed. Please try again.', csrfToken: req.csrfToken() });
     });
 });
 
@@ -478,7 +478,7 @@ router.get('/register', csrfProtection, function(req, res) {
   if (req.session && req.session.userId) {
     return res.redirect('/dashboard');
   }
-  res.render('dashboard/register', { error: null, success: null, csrfToken: req.csrfToken() });
+  res.render('dashboard/auth/register', { error: null, success: null, csrfToken: req.csrfToken() });
 });
 
 router.post('/register', csrfProtection, function(req, res) {
@@ -488,18 +488,18 @@ router.post('/register', csrfProtection, function(req, res) {
   var lastName = String(req.body.lastName || '').trim();
 
   if (!email || !password || !firstName || !lastName) {
-    return res.render('dashboard/register', { error: 'All fields are required', success: null, csrfToken: req.csrfToken() });
+    return res.render('dashboard/auth/register', { error: 'All fields are required', success: null, csrfToken: req.csrfToken() });
   }
 
   var domain = String(env.universityDomain || '').toLowerCase();
   if (!email.endsWith(domain)) {
-    return res.render('dashboard/register', { error: 'Email must end with ' + env.universityDomain, success: null, csrfToken: req.csrfToken() });
+    return res.render('dashboard/auth/register', { error: 'Email must end with ' + env.universityDomain, success: null, csrfToken: req.csrfToken() });
   }
 
   User.findOne({ where: { email: email } })
     .then(function(existing) {
       if (existing) {
-        return res.render('dashboard/register', { error: 'Email already registered', success: null, csrfToken: req.csrfToken() });
+        return res.render('dashboard/auth/register', { error: 'Email already registered', success: null, csrfToken: req.csrfToken() });
       }
 
       var token = crypto.randomBytes(32).toString('hex');
@@ -533,7 +533,7 @@ router.post('/register', csrfProtection, function(req, res) {
         if (emailResult && !emailResult.sent && emailResult.previewLink) {
           msg = 'Registration successful! Email delivery is not configured. Verification link: ' + emailResult.previewLink;
         }
-        res.render('dashboard/register', {
+        res.render('dashboard/auth/register', {
           error: null,
           success: msg,
           csrfToken: req.csrfToken()
@@ -541,7 +541,7 @@ router.post('/register', csrfProtection, function(req, res) {
       });
     })
     .catch(function() {
-      res.render('dashboard/register', { error: 'Registration failed. Please try again.', success: null, csrfToken: req.csrfToken() });
+      res.render('dashboard/auth/register', { error: 'Registration failed. Please try again.', success: null, csrfToken: req.csrfToken() });
     });
 });
 
@@ -564,7 +564,7 @@ router.get('/verify-email', function(req, res) {
   var token = String(req.query.token || '');
 
   if (!token) {
-    return res.render('dashboard/verify-email', { success: null, error: 'Missing verification token.' });
+    return res.render('dashboard/auth/verify-email', { success: null, error: 'Missing verification token.' });
   }
 
   var hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -572,10 +572,10 @@ router.get('/verify-email', function(req, res) {
   User.findOne({ where: { verificationToken: hashedToken } })
     .then(function(user) {
       if (!user) {
-        return res.render('dashboard/verify-email', { success: null, error: 'Invalid or expired verification link.' });
+        return res.render('dashboard/auth/verify-email', { success: null, error: 'Invalid or expired verification link.' });
       }
       if (new Date() > user.verificationTokenExpiry) {
-        return res.render('dashboard/verify-email', { success: null, error: 'Verification link has expired. Please register again.' });
+        return res.render('dashboard/auth/verify-email', { success: null, error: 'Verification link has expired. Please register again.' });
       }
 
       return User.update(
@@ -590,13 +590,13 @@ router.get('/verify-email', function(req, res) {
       ).then(function(result) {
         var updatedRows = result && result[0] ? result[0] : 0;
         if (updatedRows === 0) {
-          return res.render('dashboard/verify-email', { success: null, error: 'Verification link has already been used.' });
+          return res.render('dashboard/auth/verify-email', { success: null, error: 'Verification link has already been used.' });
         }
-        res.render('dashboard/verify-email', { success: 'Email verified successfully! You can now sign in.', error: null });
+        res.render('dashboard/auth/verify-email', { success: 'Email verified successfully! You can now sign in.', error: null });
       });
     })
     .catch(function() {
-      res.render('dashboard/verify-email', { success: null, error: 'Verification failed. Please try again.' });
+      res.render('dashboard/auth/verify-email', { success: null, error: 'Verification failed. Please try again.' });
     });
 });
 
@@ -604,14 +604,14 @@ router.get('/verify-email', function(req, res) {
 
 router.get('/forgot-password', csrfProtection, function(req, res) {
   if (req.session && req.session.userId) return res.redirect('/dashboard');
-  res.render('dashboard/forgot-password', { error: null, success: null, csrfToken: req.csrfToken() });
+  res.render('dashboard/auth/forgot-password', { error: null, success: null, csrfToken: req.csrfToken() });
 });
 
 router.post('/forgot-password', csrfProtection, function(req, res) {
   var email = String(req.body.email || '').toLowerCase().trim();
 
   if (!email) {
-    return res.render('dashboard/forgot-password', {
+    return res.render('dashboard/auth/forgot-password', {
       error: 'Email is required', success: null, csrfToken: req.csrfToken()
     });
   }
@@ -619,7 +619,7 @@ router.post('/forgot-password', csrfProtection, function(req, res) {
   User.findOne({ where: { email: email } })
     .then(function(user) {
       if (!user) {
-        return res.render('dashboard/forgot-password', {
+        return res.render('dashboard/auth/forgot-password', {
           error: null,
           success: 'If that email is registered, a reset link has been sent.',
           csrfToken: req.csrfToken()
@@ -639,7 +639,7 @@ router.post('/forgot-password', csrfProtection, function(req, res) {
             .catch(function() { return { sent: false, previewLink: link }; });
         })
         .then(function() {
-          res.render('dashboard/forgot-password', {
+          res.render('dashboard/auth/forgot-password', {
             error: null,
             success: 'If that email is registered, a reset link has been sent.',
             csrfToken: req.csrfToken()
@@ -647,7 +647,7 @@ router.post('/forgot-password', csrfProtection, function(req, res) {
         });
     })
     .catch(function() {
-      res.render('dashboard/forgot-password', {
+      res.render('dashboard/auth/forgot-password', {
         error: 'Request failed. Please try again.', success: null, csrfToken: req.csrfToken()
       });
     });
@@ -672,7 +672,7 @@ router.get('/reset-password', csrfProtection, function(req, res) {
     })
     .then(function(user) {
       if (!user || !user.resetPasswordTokenExpiry || new Date() > user.resetPasswordTokenExpiry) {
-        return res.render('dashboard/reset-password', {
+        return res.render('dashboard/auth/reset-password', {
           error: 'Invalid or expired reset link. Please request a new one.',
           success: null,
           token: '',
@@ -686,7 +686,7 @@ router.get('/reset-password', csrfProtection, function(req, res) {
       ).then(function(result) {
         var updatedRows = result && result[0] ? result[0] : 0;
         if (updatedRows === 0) {
-          return res.render('dashboard/reset-password', {
+          return res.render('dashboard/auth/reset-password', {
             error: 'This reset link has already been used. Please request a new one.',
             success: null,
             token: '',
@@ -694,7 +694,7 @@ router.get('/reset-password', csrfProtection, function(req, res) {
           });
         }
 
-        res.render('dashboard/reset-password', {
+        res.render('dashboard/auth/reset-password', {
           error: null,
           success: null,
           token: replacementToken,
@@ -703,7 +703,7 @@ router.get('/reset-password', csrfProtection, function(req, res) {
       });
     })
     .catch(function() {
-      res.render('dashboard/reset-password', {
+      res.render('dashboard/auth/reset-password', {
         error: 'Reset link processing failed. Please try again.',
         success: null,
         token: '',
@@ -722,7 +722,7 @@ router.post('/reset-password', csrfProtection, function(req, res) {
 
   var pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
   if (!pwRegex.test(newPassword)) {
-    return res.render('dashboard/reset-password', {
+    return res.render('dashboard/auth/reset-password', {
       error: 'Password must be at least 8 characters with uppercase, lowercase, number and special character.',
       success: null, token: token, csrfToken: req.csrfToken()
     });
@@ -733,7 +733,7 @@ router.post('/reset-password', csrfProtection, function(req, res) {
   User.findOne({ where: { resetPasswordToken: hashedToken } })
     .then(function(user) {
       if (!user || new Date() > user.resetPasswordTokenExpiry) {
-        return res.render('dashboard/reset-password', {
+        return res.render('dashboard/auth/reset-password', {
           error: 'Invalid or expired reset link. Please request a new one.',
           success: null, token: token, csrfToken: req.csrfToken()
         });
@@ -742,13 +742,13 @@ router.post('/reset-password', csrfProtection, function(req, res) {
       return require('bcryptjs').hash(newPassword, 12).then(function(hashed) {
         return user.update({ password: hashed, resetPasswordToken: null, resetPasswordTokenExpiry: null });
       }).then(function() {
-        res.render('dashboard/reset-password', {
+        res.render('dashboard/auth/reset-password', {
           error: null, success: 'Password reset successfully!', token: '', csrfToken: req.csrfToken()
         });
       });
     })
     .catch(function() {
-      res.render('dashboard/reset-password', {
+      res.render('dashboard/auth/reset-password', {
         error: 'Reset failed. Please try again.', success: null, token: token, csrfToken: req.csrfToken()
       });
     });
@@ -760,21 +760,21 @@ router.get('/', isDashboardAuthenticated, function(req, res) {
   if (DASHBOARD_DEMO_MODE) {
     var demoOverview = getDemoAnalyticsResponse('/api/analytics/overview', req);
     var demoOverviewData = demoOverview && demoOverview.data ? demoOverview.data : null;
-    return res.render('dashboard/index', { overview: demoOverviewData });
+    return res.render('dashboard/pages/index', { overview: demoOverviewData });
   }
 
   proxyGet('/api/analytics/overview', {}, function(err, data) {
     var overview = (data && data.data) ? data.data : null;
-    res.render('dashboard/index', { overview: overview });
+    res.render('dashboard/pages/index', { overview: overview });
   });
 });
 
 router.get('/charts', isDashboardAuthenticated, function(req, res) {
-  res.render('dashboard/charts');
+  res.render('dashboard/pages/charts');
 });
 
 router.get('/alumni', isDashboardAuthenticated, function(req, res) {
-  res.render('dashboard/alumni');
+  res.render('dashboard/pages/alumni');
 });
 
 // ─── Server-side API proxy routes ───

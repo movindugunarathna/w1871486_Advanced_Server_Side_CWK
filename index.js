@@ -107,12 +107,12 @@ app.use(function(err, req, res, next) {
     return errorHandler(err, req, res, next);
   }
   if (!module.parent) console.error(err.stack);
-  res.status(500).render('5xx');
+  res.status(500).render('errors/5xx');
 });
 
 // 404 handler
 app.use(function(req, res, next){
-  res.status(404).render('404', { url: req.originalUrl });
+  res.status(404).render('errors/404', { url: req.originalUrl });
 });
 
 // Start server with DB sync
