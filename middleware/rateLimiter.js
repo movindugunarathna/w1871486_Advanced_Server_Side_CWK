@@ -2,6 +2,13 @@
 
 var rateLimit = require('express-rate-limit');
 
+function isTrustedDashboardProxyRequest(req) {
+  var forwarded = req.headers['x-dashboard-proxy'];
+  var ip = req.ip || '';
+  var isLoopbackIp = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  return forwarded === '1' && isLoopbackIp;
+}
+
 // Auth routes: 10 requests per 15 minutes
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -53,7 +60,12 @@ exports.analyticsLimiter = rateLimit({
   max: 60,
   message: { success: false, message: 'Analytics rate limit exceeded. Please try again later.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: function(req) {
+    // Dashboard page requests are authenticated and proxied by this same server.
+    // Skip analytics throttling to avoid self-throttling chart loads.
+    return isTrustedDashboardProxyRequest(req);
+  }
 });
 
 // Export routes: 10 requests per 15 minutes per IP
@@ -62,7 +74,10 @@ exports.exportLimiter = rateLimit({
   max: 10,
   message: { success: false, message: 'Export rate limit exceeded. Please try again later.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: function(req) {
+    return isTrustedDashboardProxyRequest(req);
+  }
 });
 
 // General: 200 per 15 minutes per IP

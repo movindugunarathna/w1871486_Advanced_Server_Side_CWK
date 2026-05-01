@@ -59,7 +59,8 @@ function proxyGet(apiPath, query, callback) {
     method: 'GET',
     headers: {
       'Authorization': 'Bearer ' + API_KEY,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'X-Dashboard-Proxy': '1'
     }
   };
 
@@ -109,7 +110,8 @@ function proxyDownload(apiPath, query, res) {
     path: fullPath,
     method: 'GET',
     headers: {
-      'Authorization': 'Bearer ' + API_KEY
+      'Authorization': 'Bearer ' + API_KEY,
+      'X-Dashboard-Proxy': '1'
     }
   };
 

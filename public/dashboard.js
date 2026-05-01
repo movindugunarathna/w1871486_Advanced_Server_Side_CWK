@@ -8,6 +8,7 @@
     '#6f42c1', '#fd7e14', '#20c997', '#d63384', '#6610f2',
     '#adb5bd', '#495057', '#0b5ed7', '#157347', '#b02a37'
   ];
+  var apiRequestCache = {};
 
   // Severity colour bands for skill-gap / job-title bar charts.
   // Critical (red) = top 30% of max, Significant (orange) = top 60%, Emerging (yellow) = rest.
@@ -26,6 +27,8 @@
 
   function apiFetch(proxyPath, params) {
     var url = new URL(proxyPath, window.location.origin);
+    var cacheKey;
+    var requestPromise;
     if (params) {
       Object.keys(params).forEach(function(k) {
         if (params[k] !== '' && params[k] != null) {
@@ -33,12 +36,19 @@
         }
       });
     }
-    // Add a cache-busting timestamp so dashboard chart calls always hit fresh data.
-    url.searchParams.set('_t', Date.now());
-    return fetch(url.toString(), { cache: 'no-store' }).then(function(res) {
+    cacheKey = url.pathname + '?' + url.searchParams.toString();
+    if (apiRequestCache[cacheKey]) {
+      return apiRequestCache[cacheKey];
+    }
+
+    requestPromise = fetch(url.toString(), { cache: 'no-store' }).then(function(res) {
       if (!res.ok) throw new Error('API error: ' + res.status);
       return res.json();
+    }).finally(function() {
+      delete apiRequestCache[cacheKey];
     });
+    apiRequestCache[cacheKey] = requestPromise;
+    return requestPromise;
   }
 
   function expectedMimeForFilename(filename) {
@@ -133,16 +143,31 @@
     }
   }
 
-  function showError(canvasId, message) {
+  function clearChartMessages(canvasId) {
     var canvas = document.getElementById(canvasId);
-    if (canvas) {
-      var container = canvas.parentElement;
-      hideSpinner(canvasId.replace('Chart', ''));
-      var alert = document.createElement('div');
-      alert.className = 'alert alert-warning mt-2';
-      alert.textContent = message || 'Failed to load chart data';
-      container.appendChild(alert);
-    }
+    if (!canvas) return;
+    var container = canvas.parentElement;
+    container.querySelectorAll('.chart-msg').forEach(function(el) { el.remove(); });
+  }
+
+  function showChartMessage(canvasId, message, type) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var container = canvas.parentElement;
+    hideSpinner(canvasId.replace('Chart', ''));
+    clearChartMessages(canvasId);
+    var el = document.createElement('div');
+    el.className = 'chart-msg alert ' + (type === 'info' ? 'alert-info' : 'alert-warning') + ' mt-2 text-center py-2';
+    el.textContent = message;
+    container.appendChild(el);
+  }
+
+  function showError(canvasId, message) {
+    showChartMessage(canvasId, message || 'Failed to load chart data', 'warning');
+  }
+
+  function showNoData(canvasId) {
+    showChartMessage(canvasId, 'No data available for the selected filters.', 'info');
   }
 
   function destroyChart(name) {
@@ -165,11 +190,13 @@
 
   function renderCertificationsChart(filters) {
     hideSpinner('certificationsChart');
+    clearChartMessages('certificationsChart');
     apiFetch('/dashboard/proxy/analytics/skills-gap', filters).then(function(res) {
       var items = (res.data && res.data.certifications) ? res.data.certifications.slice(0, 10) : [];
       destroyChart('certifications');
       var ctx = document.getElementById('certificationsChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('certificationsChart');
       var counts = items.map(function(c) { return c.count; });
       window.charts.certifications = new Chart(ctx, {
         type: 'bar',
@@ -203,11 +230,13 @@
 
   function renderCoursesChart(filters) {
     hideSpinner('coursesChart');
+    clearChartMessages('coursesChart');
     apiFetch('/dashboard/proxy/analytics/skills-gap', filters).then(function(res) {
       var items = (res.data && res.data.professionalCourses) ? res.data.professionalCourses.slice(0, 10) : [];
       destroyChart('courses');
       var ctx = document.getElementById('coursesChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('coursesChart');
       window.charts.courses = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -225,11 +254,13 @@
 
   function renderSectorChart(filters) {
     hideSpinner('sectorChart');
+    clearChartMessages('sectorChart');
     apiFetch('/dashboard/proxy/analytics/employment-by-sector', filters).then(function(res) {
       var items = (res.data && res.data.sectors) ? res.data.sectors.slice(0, 10) : [];
       destroyChart('sector');
       var ctx = document.getElementById('sectorChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('sectorChart');
       window.charts.sector = new Chart(ctx, {
         type: 'pie',
         data: {
@@ -246,11 +277,13 @@
 
   function renderCertTrendChart(filters) {
     hideSpinner('certTrendChart');
+    clearChartMessages('certTrendChart');
     apiFetch('/dashboard/proxy/analytics/career-trends', filters).then(function(res) {
       var items = (res.data && res.data.certificationsByMonth) ? res.data.certificationsByMonth : [];
       destroyChart('certTrend');
       var ctx = document.getElementById('certTrendChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('certTrendChart');
       window.charts.certTrend = new Chart(ctx, {
         type: 'line',
         data: {
@@ -271,12 +304,14 @@
 
   function renderEmployersChart(filters) {
     hideSpinner('employersChart');
+    clearChartMessages('employersChart');
     var params = Object.assign({}, filters, { limit: 6 });
     apiFetch('/dashboard/proxy/analytics/top-employers', params).then(function(res) {
       var items = (res.data && res.data.employers) ? res.data.employers : [];
       destroyChart('employers');
       var ctx = document.getElementById('employersChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('employersChart');
       window.charts.employers = new Chart(ctx, {
         type: 'radar',
         data: {
@@ -295,11 +330,13 @@
 
   function renderCompletionChart(filters) {
     hideSpinner('completionChart');
+    clearChartMessages('completionChart');
     apiFetch('/dashboard/proxy/analytics/profile-completion-rate', filters).then(function(res) {
       var d = res.data || {};
       destroyChart('completion');
       var ctx = document.getElementById('completionChart');
       if (!ctx) return;
+      if ((d.complete || 0) === 0 && (d.incomplete || 0) === 0) return showNoData('completionChart');
       window.charts.completion = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -316,11 +353,13 @@
 
   function renderJobTitlesChart(filters) {
     hideSpinner('jobTitlesChart');
+    clearChartMessages('jobTitlesChart');
     apiFetch('/dashboard/proxy/analytics/job-titles', filters).then(function(res) {
       var items = (res.data && res.data.jobTitles) ? res.data.jobTitles.slice(0, 15) : [];
       destroyChart('jobTitles');
       var ctx = document.getElementById('jobTitlesChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('jobTitlesChart');
       var counts = items.map(function(j) { return j.count; });
       window.charts.jobTitles = new Chart(ctx, {
         type: 'bar',
@@ -339,11 +378,13 @@
 
   function renderFeaturedTrendChart(filters) {
     hideSpinner('featuredTrendChart');
+    clearChartMessages('featuredTrendChart');
     apiFetch('/dashboard/proxy/analytics/career-trends', filters).then(function(res) {
       var items = (res.data && res.data.featuredAlumniByMonth) ? res.data.featuredAlumniByMonth : [];
       destroyChart('featuredTrend');
       var ctx = document.getElementById('featuredTrendChart');
       if (!ctx) return;
+      if (!items.length) return showNoData('featuredTrendChart');
       window.charts.featuredTrend = new Chart(ctx, {
         type: 'line',
         data: {
@@ -423,7 +464,9 @@
     if (!form) return;
 
     var filters = {};
-    allChartRenderers.forEach(function(fn) { fn(filters); });
+    populateChartsFilterSelects().finally(function() {
+      allChartRenderers.forEach(function(fn) { fn(filters); });
+    });
 
     form.addEventListener('submit', function(e) {
       e.preventDefault();
@@ -446,6 +489,108 @@
 
   var alumniCurrentPage = 1;
   var alumniFilters = {};
+
+  function appendUniqueOption(selectEl, value) {
+    if (!selectEl || value == null) return;
+    var text = String(value).trim();
+    var exists;
+    var option;
+    if (!text) return;
+    exists = Array.prototype.some.call(selectEl.options, function(opt) { return opt.value === text; });
+    if (exists) return;
+    option = document.createElement('option');
+    option.value = text;
+    option.textContent = text;
+    selectEl.appendChild(option);
+  }
+
+  function collectAlumniFilterOptions(selectRefs) {
+    var seenProgrammes = {};
+    var seenYears = {};
+    var seenSectors = {};
+
+    function addProfileData(profile) {
+      (profile.Degrees || []).forEach(function(degree) {
+        var programmeName = degree && degree.name ? String(degree.name).trim() : '';
+        var year = degree && degree.completionDate ? new Date(degree.completionDate).getFullYear() : '';
+        if (programmeName && !seenProgrammes[programmeName]) {
+          seenProgrammes[programmeName] = true;
+          appendUniqueOption(selectRefs.programme, programmeName);
+        }
+        if (year && String(year) !== 'NaN' && !seenYears[String(year)]) {
+          seenYears[String(year)] = true;
+          appendUniqueOption(selectRefs.year, String(year));
+        }
+      });
+
+      (profile.Employments || []).forEach(function(job) {
+        var company = job && job.company ? String(job.company).trim() : '';
+        var role = job && job.role ? String(job.role).trim() : '';
+        if (company && !seenSectors[company]) {
+          seenSectors[company] = true;
+          appendUniqueOption(selectRefs.sector, company);
+        }
+        if (role && !seenSectors[role]) {
+          seenSectors[role] = true;
+          appendUniqueOption(selectRefs.sector, role);
+        }
+      });
+    }
+
+    function sortSelectOptions(selectEl, numeric) {
+      var options = Array.prototype.slice.call(selectEl.options, 1);
+      options.sort(function(a, b) {
+        if (numeric) return Number(b.value) - Number(a.value);
+        return a.value.localeCompare(b.value);
+      });
+      options.forEach(function(opt) { selectEl.appendChild(opt); });
+    }
+
+    function fetchPage(page, totalPages) {
+      if (page > totalPages) {
+        sortSelectOptions(selectRefs.programme, false);
+        sortSelectOptions(selectRefs.year, true);
+        sortSelectOptions(selectRefs.sector, false);
+        return Promise.resolve();
+      }
+
+      return apiFetch('/dashboard/proxy/alumni', { page: page, limit: 100 }).then(function(res) {
+        var alumni = (res.data && res.data.alumni) ? res.data.alumni : [];
+        var pagination = (res.data && res.data.pagination) ? res.data.pagination : {};
+        var nextTotalPages = pagination.totalPages || totalPages || 1;
+        alumni.forEach(addProfileData);
+        return fetchPage(page + 1, nextTotalPages);
+      }).catch(function() {
+        return Promise.resolve();
+      });
+    }
+
+    return fetchPage(1, 1);
+  }
+
+  function populateChartsFilterSelects() {
+    var programmeSelect = document.getElementById('chartsProgrammeFilter');
+    var yearSelect = document.getElementById('chartsGraduationYearFilter');
+    var sectorSelect = document.getElementById('chartsIndustrySectorFilter');
+    if (!programmeSelect || !yearSelect || !sectorSelect) return Promise.resolve();
+    return collectAlumniFilterOptions({
+      programme: programmeSelect,
+      year: yearSelect,
+      sector: sectorSelect
+    });
+  }
+
+  function populateAlumniFilterSelects() {
+    var programmeSelect = document.getElementById('alumniProgrammeFilter');
+    var yearSelect = document.getElementById('alumniGraduationYearFilter');
+    var sectorSelect = document.getElementById('alumniIndustrySectorFilter');
+    if (!programmeSelect || !yearSelect || !sectorSelect) return Promise.resolve();
+    return collectAlumniFilterOptions({
+      programme: programmeSelect,
+      year: yearSelect,
+      sector: sectorSelect
+    });
+  }
 
   function loadAlumni(filters, page) {
     var loading = document.getElementById('alumniLoading');
@@ -618,7 +763,9 @@
     var form = document.getElementById('alumniFilterForm');
     if (!form) return;
 
-    loadAlumni({}, 1);
+    populateAlumniFilterSelects().finally(function() {
+      loadAlumni({}, 1);
+    });
 
     form.addEventListener('submit', function(e) {
       e.preventDefault();
@@ -680,12 +827,60 @@
     }
   }
 
-  function initExportButtons() {
-    document.querySelectorAll('[data-endpoint]').forEach(function(btn) {
+  function slugPresetFilename(name) {
+    var s = String(name || 'preset').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return s || 'preset';
+  }
+
+  function getSelectedPresetFilters() {
+    var sel = document.getElementById('presetSelect');
+    if (!sel || !sel.value) return null;
+    var presets = loadPresetsFromStorage();
+    return presets[sel.value] || {};
+  }
+
+  function updatePresetExportButtonsState() {
+    var sel = document.getElementById('presetSelect');
+    var hasPreset = !!(sel && sel.value);
+    ['exportPresetSkillsCsv', 'exportPresetSkillsPdf', 'exportPresetEmploymentCsv', 'exportPresetEmploymentPdf'].forEach(function(id) {
+      var b = document.getElementById(id);
+      if (b) b.disabled = !hasPreset;
+    });
+    var nameEl = document.getElementById('selectedPresetName');
+    if (nameEl) {
+      nameEl.textContent = hasPreset ? sel.value : '—';
+    }
+    var hint = document.getElementById('presetExportHint');
+    if (hint) {
+      hint.textContent = hasPreset
+        ? 'Exports use the filters stored for this preset (not unsaved form edits). Confirm each download below.'
+        : 'Choose a saved preset above. You will be asked to confirm before each CSV or PDF download.';
+    }
+  }
+
+  function initPresetExportButtons() {
+    function bind(btnId, path, format, fileStem, reportLabel) {
+      var btn = document.getElementById(btnId);
+      if (!btn) return;
       btn.addEventListener('click', function() {
-        var chartFilters = getFilters('filterForm');
-        var endpoint = withQueryParams(btn.dataset.endpoint, chartFilters);
-        var filename = btn.dataset.filename || 'export';
+        var sel = document.getElementById('presetSelect');
+        if (!sel || !sel.value) {
+          alert('Select a saved preset first.');
+          return;
+        }
+        var presetName = sel.value;
+        var fmt = format === 'pdf' ? 'PDF' : 'CSV';
+        var msg =
+          'Export ' + reportLabel + ' as ' + fmt + '?\n\n' +
+          'Saved preset: "' + presetName + '"';
+        if (!window.confirm(msg)) {
+          return;
+        }
+        var filters = getSelectedPresetFilters();
+        var slug = slugPresetFilename(presetName);
+        var dateStamp = new Date().toISOString().slice(0, 10);
+        var filename = fileStem + '-' + slug + '-' + dateStamp + (format === 'pdf' ? '.pdf' : '.csv');
+        var endpoint = withQueryParams(path, Object.assign({}, filters, { format: format }));
         setExportBtnLoading(btn, true);
         downloadFile(endpoint, filename)
           .catch(function(err) {
@@ -695,7 +890,11 @@
             setExportBtnLoading(btn, false);
           });
       });
-    });
+    }
+    bind('exportPresetSkillsCsv', '/dashboard/proxy/analytics/export/skills-gap', 'csv', 'skills-gap', 'the skills gap report');
+    bind('exportPresetSkillsPdf', '/dashboard/proxy/analytics/export/skills-gap', 'pdf', 'skills-gap', 'the skills gap report');
+    bind('exportPresetEmploymentCsv', '/dashboard/proxy/analytics/export/employment', 'csv', 'employment-by-sector', 'the employment by sector report');
+    bind('exportPresetEmploymentPdf', '/dashboard/proxy/analytics/export/employment', 'pdf', 'employment-by-sector', 'the employment by sector report');
   }
 
   // ─── Utility ───
@@ -734,6 +933,7 @@
       opt.textContent = name;
       sel.appendChild(opt);
     });
+    updatePresetExportButtonsState();
   }
 
   function initPresets() {
@@ -753,9 +953,11 @@
       savePresetsToStorage(presets);
       populatePresetSelect();
       sel.value = name.trim();
+      updatePresetExportButtonsState();
     });
 
     sel.addEventListener('change', function() {
+      updatePresetExportButtonsState();
       var name = sel.value;
       if (!name) return;
       var presets = loadPresetsFromStorage();
@@ -799,6 +1001,6 @@
 
     // Download buttons
     initDownloadButtons();
-    initExportButtons();
+    initPresetExportButtons();
   });
 })();

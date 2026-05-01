@@ -1,0 +1,175 @@
+{
+  "endpoints": {
+    "/api/analytics/overview": {
+      "success": true,
+      "data": {
+        "totalAlumni": 1284,
+        "profilesComplete": 742,
+        "totalDegrees": 1510,
+        "totalCertifications": 3892,
+        "totalEmploymentRecords": 2103,
+        "featuredAlumniTotal": 48,
+        "mostRecentFeatured": {
+          "firstName": "Aisha",
+          "lastName": "Fernando",
+          "featuredDate": "2026-04-18"
+        }
+      }
+    },
+    "/api/analytics/skills-gap": {
+      "success": true,
+      "data": {
+        "certifications": [
+          { "name": "AWS Solutions Architect – Associate", "issuingBody": "Amazon Web Services", "count": 48 },
+          { "name": "Google Data Analytics Certificate", "issuingBody": "Google", "count": 41 },
+          { "name": "Certified ScrumMaster (CSM)", "issuingBody": "Scrum Alliance", "count": 36 },
+          { "name": "Microsoft Azure Fundamentals", "issuingBody": "Microsoft", "count": 33 },
+          { "name": "CompTIA Security+", "issuingBody": "CompTIA", "count": 29 },
+          { "name": "ITIL 4 Foundation", "issuingBody": "PeopleCert", "count": 24 },
+          { "name": "Kubernetes Administrator (CKA)", "issuingBody": "CNCF", "count": 22 },
+          { "name": "PMI Project Management Professional", "issuingBody": "PMI", "count": 19 },
+          { "name": "Oracle SQL Certification", "issuingBody": "Oracle", "count": 17 },
+          { "name": "Cisco CCNA", "issuingBody": "Cisco", "count": 15 },
+          { "name": "HashiCorp Terraform Associate", "issuingBody": "HashiCorp", "count": 12 },
+          { "name": "ISTQB Foundation", "issuingBody": "ISTQB", "count": 10 }
+        ],
+        "professionalCourses": [
+          { "name": "Full Stack Web Development Bootcamp", "provider": "Udemy", "count": 44 },
+          { "name": "Machine Learning Specialization", "provider": "Coursera", "count": 39 },
+          { "name": "Advanced SQL for Data Analysts", "provider": "LinkedIn Learning", "count": 35 },
+          { "name": "React and TypeScript Complete Guide", "provider": "Udemy", "count": 31 },
+          { "name": "DevOps on AWS", "provider": "Pluralsight", "count": 28 },
+          { "name": "UX Design Fundamentals", "provider": "Coursera", "count": 25 },
+          { "name": "Kubernetes for Developers", "provider": "Pluralsight", "count": 21 },
+          { "name": "Agile with Atlassian Jira", "provider": "Atlassian University", "count": 18 },
+          { "name": "Python for Everybody", "provider": "Coursera", "count": 16 },
+          { "name": "Business Analysis Foundations", "provider": "LinkedIn Learning", "count": 14 },
+          { "name": "Cloud Architecture Patterns", "provider": "A Cloud Guru", "count": 11 },
+          { "name": "Introduction to Cybersecurity", "provider": "IBM SkillsBuild", "count": 9 }
+        ],
+        "topSkillGaps": [
+          { "skill": "AWS Solutions Architect – Associate", "type": "certification", "source": "Amazon Web Services", "count": 48 },
+          { "skill": "Full Stack Web Development Bootcamp", "type": "course", "source": "Udemy", "count": 44 },
+          { "skill": "Google Data Analytics Certificate", "type": "certification", "source": "Google", "count": 41 },
+          { "skill": "Machine Learning Specialization", "type": "course", "source": "Coursera", "count": 39 },
+          { "skill": "Certified ScrumMaster (CSM)", "type": "certification", "source": "Scrum Alliance", "count": 36 },
+          { "skill": "Advanced SQL for Data Analysts", "type": "course", "source": "LinkedIn Learning", "count": 35 },
+          { "skill": "Microsoft Azure Fundamentals", "type": "certification", "source": "Microsoft", "count": 33 },
+          { "skill": "React and TypeScript Complete Guide", "type": "course", "source": "Udemy", "count": 31 },
+          { "skill": "CompTIA Security+", "type": "certification", "source": "CompTIA", "count": 29 },
+          { "skill": "DevOps on AWS", "type": "course", "source": "Pluralsight", "count": 28 }
+        ]
+      }
+    },
+    "/api/analytics/employment-by-sector": {
+      "success": true,
+      "data": {
+        "sectors": [
+          { "sector": "TechNova Labs", "alumniCount": 186, "percentage": 18.6 },
+          { "sector": "BlueOrbit Solutions", "alumniCount": 142, "percentage": 14.2 },
+          { "sector": "Apex FinServe", "alumniCount": 118, "percentage": 11.8 },
+          { "sector": "Nimbus Digital", "alumniCount": 97, "percentage": 9.7 },
+          { "sector": "Eastminster IT Services", "alumniCount": 84, "percentage": 8.4 },
+          { "sector": "Helix Analytics", "alumniCount": 76, "percentage": 7.6 },
+          { "sector": "Cedar Health Systems", "alumniCount": 65, "percentage": 6.5 },
+          { "sector": "Summit Retail Group", "alumniCount": 54, "percentage": 5.4 },
+          { "sector": "Vertex Logistics", "alumniCount": 48, "percentage": 4.8 },
+          { "sector": "Lumen Education Trust", "alumniCount": 41, "percentage": 4.1 },
+          { "sector": "Other", "alumniCount": 89, "percentage": 8.9 }
+        ]
+      }
+    },
+    "/api/analytics/job-titles": {
+      "success": true,
+      "data": {
+        "jobTitles": [
+          { "title": "Software Engineer", "count": 214 },
+          { "title": "Data Analyst", "count": 156 },
+          { "title": "Project Manager", "count": 128 },
+          { "title": "Business Analyst", "count": 112 },
+          { "title": "DevOps Engineer", "count": 98 },
+          { "title": "Full Stack Developer", "count": 91 },
+          { "title": "Cloud Engineer", "count": 84 },
+          { "title": "Product Manager", "count": 76 },
+          { "title": "QA Engineer", "count": 69 },
+          { "title": "Systems Administrator", "count": 61 },
+          { "title": "UX Designer", "count": 54 },
+          { "title": "Cybersecurity Analyst", "count": 47 },
+          { "title": "IT Support Specialist", "count": 42 },
+          { "title": "Scrum Master", "count": 38 },
+          { "title": "Database Administrator", "count": 33 },
+          { "title": "Technical Consultant", "count": 29 }
+        ]
+      }
+    },
+    "/api/analytics/top-employers": {
+      "success": true,
+      "data": {
+        "employers": [
+          { "company": "TechNova Labs", "alumniCount": 62 },
+          { "company": "BlueOrbit Solutions", "alumniCount": 55 },
+          { "company": "Apex FinServe", "alumniCount": 49 },
+          { "company": "Nimbus Digital", "alumniCount": 44 },
+          { "company": "Helix Analytics", "alumniCount": 38 },
+          { "company": "Eastminster IT Services", "alumniCount": 35 },
+          { "company": "Cedar Health Systems", "alumniCount": 31 },
+          { "company": "Vertex Logistics", "alumniCount": 28 },
+          { "company": "Summit Retail Group", "alumniCount": 24 },
+          { "company": "Lumen Education Trust", "alumniCount": 21 },
+          { "company": "GlobalSoft Inc", "alumniCount": 19 },
+          { "company": "Skyline Telecom", "alumniCount": 16 }
+        ]
+      }
+    },
+    "/api/analytics/career-trends": {
+      "success": true,
+      "data": {
+        "certificationsByMonth": [
+          { "month": "2025-06", "count": 22 },
+          { "month": "2025-07", "count": 28 },
+          { "month": "2025-08", "count": 31 },
+          { "month": "2025-09", "count": 26 },
+          { "month": "2025-10", "count": 34 },
+          { "month": "2025-11", "count": 29 },
+          { "month": "2025-12", "count": 41 },
+          { "month": "2026-01", "count": 38 },
+          { "month": "2026-02", "count": 45 },
+          { "month": "2026-03", "count": 52 },
+          { "month": "2026-04", "count": 48 },
+          { "month": "2026-05", "count": 36 }
+        ],
+        "featuredAlumniByMonth": [
+          { "month": "2025-06", "count": 2 },
+          { "month": "2025-07", "count": 3 },
+          { "month": "2025-08", "count": 2 },
+          { "month": "2025-09", "count": 4 },
+          { "month": "2025-10", "count": 3 },
+          { "month": "2025-11", "count": 5 },
+          { "month": "2025-12", "count": 4 },
+          { "month": "2026-01", "count": 6 },
+          { "month": "2026-02", "count": 5 },
+          { "month": "2026-03", "count": 7 },
+          { "month": "2026-04", "count": 6 },
+          { "month": "2026-05", "count": 4 }
+        ]
+      }
+    },
+    "/api/analytics/profile-completion-rate": {
+      "success": true,
+      "data": {
+        "complete": 742,
+        "incomplete": 542,
+        "completionRate": 57.8,
+        "breakdown": {
+          "hasFirstName": 1276,
+          "hasLastName": 1274,
+          "hasBio": 891,
+          "hasLinkedIn": 1024,
+          "hasImage": 612,
+          "hasDegree": 1180,
+          "hasEmployment": 965
+        }
+      }
+    }
+  }
+}

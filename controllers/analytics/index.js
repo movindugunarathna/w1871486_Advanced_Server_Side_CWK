@@ -32,10 +32,11 @@ var buildDegreeWhere = function(programme, graduationYear) {
   }
 
   if (graduationYear) {
-    where.completionDate = sequelize.where(
-      sequelize.fn('YEAR', sequelize.col('completionDate')),
-      Number(graduationYear)
-    );
+    var yr = Number(graduationYear);
+    where.completionDate = {
+      [Op.gte]: new Date(yr, 0, 1),
+      [Op.lt]: new Date(yr + 1, 0, 1)
+    };
   }
 
   return where;
@@ -107,6 +108,7 @@ var getSkillsGapData = async function(filters) {
       [sequelize.fn('COUNT', sequelize.col('Certification.id')), 'count']
     ],
     include: includeForSkills,
+    subQuery: false,
     group: ['Certification.name', 'Certification.issuingBody'],
     order: [[sequelize.fn('COUNT', sequelize.col('Certification.id')), 'DESC']],
     limit: 20,
@@ -120,6 +122,7 @@ var getSkillsGapData = async function(filters) {
       [sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'count']
     ],
     include: includeForSkills,
+    subQuery: false,
     group: ['ProfessionalCourse.name', 'ProfessionalCourse.provider'],
     order: [[sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'DESC']],
     limit: 20,
@@ -576,6 +579,7 @@ router.get('/job-titles', apiKeyAuth, hasPermission('read:analytics'), analytics
         required: profileNestedIncludes.length > 0,
         include: profileNestedIncludes
       }],
+      subQuery: false,
       group: ['Employment.role'],
       order: [[sequelize.fn('COUNT', sequelize.col('Employment.id')), 'DESC']],
       limit: 20,
@@ -668,6 +672,7 @@ router.get('/top-employers', apiKeyAuth, hasPermission('read:analytics'), analyt
         required: profileNestedIncludes.length > 0,
         include: profileNestedIncludes
       }],
+      subQuery: false,
       group: ['Employment.company'],
       order: [[sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'DESC']],
       limit: parsedLimit,
