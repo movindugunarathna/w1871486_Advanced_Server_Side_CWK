@@ -73,11 +73,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push-image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
+    environment: Production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+  
       - name: Copy docker-compose to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -87,7 +87,7 @@ jobs:
           port: 22
           source: "docker-compose.yml"
           target: "/opt/alumni-api"
-
+  
       - name: Deploy to Droplet via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
