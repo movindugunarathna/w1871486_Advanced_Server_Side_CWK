@@ -414,3 +414,89 @@ http://localhost:5000/api-docs
 Authenticate using the **Authorize** button:
 - **sessionAuth** — paste your `connect.sid` cookie value
 - **bearerAuth** — paste your API key
+
+---
+
+## Deployment (DigitalOcean Droplet via GitHub Actions)
+
+### Architecture
+
+The CI/CD pipeline uses GitHub Actions to automatically build a Docker image, push it to GitHub Container Registry (GHCR), and deploy it to a DigitalOcean droplet running Docker Compose (Node.js app + MySQL 8.0).
+
+### Prerequisites
+
+1. **DigitalOcean Droplet** with Docker and Docker Compose installed (root password auth)
+2. **GitHub repository** with Actions enabled
+
+### Droplet Setup (one-time)
+
+SSH into your droplet and run:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Create the app directory
+sudo mkdir -p /opt/alumni-api
+sudo chown $USER:$USER /opt/alumni-api
+```
+
+### Required GitHub Secrets
+
+Go to your repo **Settings > Secrets and variables > Actions** and add:
+
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `DROPLET_HOST` | Droplet IP address | `164.90.xxx.xxx` |
+| `DROPLET_PASSWORD` | Root password for the droplet | `your-root-password` |
+| `GH_PAT` | GitHub PAT with `read:packages` scope | `ghp_xxxxxxxxxxxx` |
+| `DB_USER` | MySQL username | `alumni_user` |
+| `DB_PASSWORD` | MySQL password | `strong-password-here` |
+| `DB_NAME` | MySQL database name | `w1871486_alumni_influencers` |
+| `SESSION_SECRET` | Express session secret | `random-64-char-string` |
+| `JWT_SECRET` | JWT signing secret | `random-64-char-string` |
+| `ANALYTICS_API_KEY` | Dashboard analytics key | `your-api-key` |
+| `EMAIL_HOST` | SMTP host (optional) | `smtp.gmail.com` |
+| `EMAIL_PORT` | SMTP port (optional) | `587` |
+| `EMAIL_USER` | SMTP username (optional) | `you@gmail.com` |
+| `EMAIL_PASS` | SMTP password (optional) | `app-password` |
+| `EMAIL_FROM` | Sender address (optional) | `noreply@eastminster.ac.uk` |
+| `CORS_ORIGIN` | Allowed CORS origin | `https://yourdomain.com` |
+| `BASE_URL` | Public base URL | `https://yourdomain.com` |
+
+### How It Works
+
+1. **Push to `main`** triggers the workflow
+2. **Build job** — installs dependencies and checks for syntax errors
+3. **Docker job** — builds and pushes the image to `ghcr.io`
+4. **Deploy job** — SSHs into the droplet, pulls the latest image, and restarts via Docker Compose
+
+### Manual Deployment
+
+If you need to deploy manually on the droplet:
+
+```bash
+cd /opt/alumni-api
+
+# Pull latest image
+docker compose pull app
+
+# Start/restart
+docker compose up -d
+
+# View logs
+docker compose logs -f app
+
+# Seed the database (first time)
+docker compose exec app node utils/seed.js
+```
+
+### Health Check
+
+The app exposes a `/health` endpoint. Docker uses it to verify the container is running correctly:
+
+```bash
+curl http://your-droplet-ip/health
+# {"status":"ok"}
+```
