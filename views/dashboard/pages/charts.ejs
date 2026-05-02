@@ -1,23 +1,57 @@
 <% var pageTitle = 'Charts'; %>
-<%- include('layout') %>
+<%- include('../partials/layout') %>
 
 <h2 class="mb-4">Analytics Charts</h2>
 
 <form id="filterForm" class="row g-2 mb-4">
   <div class="col-md-3">
-    <input name="programme" class="form-control" placeholder="Programme...">
+    <select name="programme" class="form-select" id="chartsProgrammeFilter">
+      <option value="">All Programmes</option>
+    </select>
   </div>
   <div class="col-md-2">
-    <input name="graduationYear" type="number" class="form-control" placeholder="Graduation Year">
+    <select name="graduationYear" class="form-select" id="chartsGraduationYearFilter">
+      <option value="">All Graduation Years</option>
+    </select>
   </div>
   <div class="col-md-3">
-    <input name="industrySector" class="form-control" placeholder="Industry Sector...">
+    <select name="industrySector" class="form-select" id="chartsIndustrySectorFilter">
+      <option value="">All Industry Sectors / Roles</option>
+    </select>
   </div>
   <div class="col-md-2">
     <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
   </div>
   <div class="col-md-2">
     <button type="reset" class="btn btn-outline-secondary w-100" id="clearFilters">Clear</button>
+  </div>
+  <div class="col-12 d-flex flex-wrap align-items-center gap-2 mt-1">
+    <button type="button" class="btn btn-sm btn-outline-info" id="savePresetBtn">Save Preset</button>
+    <select class="form-select form-select-sm w-auto" id="presetSelect">
+      <option value="">Load saved preset…</option>
+    </select>
+    <button type="button" class="btn btn-sm btn-outline-danger" id="deletePresetBtn">Delete</button>
+  </div>
+  <div class="col-12 mt-2 p-3 border rounded bg-light">
+    <div class="small text-uppercase text-muted mb-1">Export saved preset</div>
+    <div class="mb-1"><span class="small text-muted">Active preset:</span> <strong id="selectedPresetName">—</strong></div>
+    <p class="small text-muted mb-3" id="presetExportHint">Choose a saved preset above. You will be asked to confirm before each CSV or PDF download.</p>
+    <div class="d-flex flex-wrap align-items-end gap-3">
+      <div>
+        <div class="small text-muted mb-1">Skills gap</div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Skills gap export format">
+          <button type="button" class="btn btn-outline-success" id="exportPresetSkillsCsv" disabled title="Export skills gap as CSV" aria-label="Export skills gap as CSV">CSV</button>
+          <button type="button" class="btn btn-outline-danger" id="exportPresetSkillsPdf" disabled title="Export skills gap as PDF" aria-label="Export skills gap as PDF">PDF</button>
+        </div>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Employment by sector</div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Employment export format">
+          <button type="button" class="btn btn-outline-success" id="exportPresetEmploymentCsv" disabled title="Export employment by sector as CSV" aria-label="Export employment by sector as CSV">CSV</button>
+          <button type="button" class="btn btn-outline-danger" id="exportPresetEmploymentPdf" disabled title="Export employment by sector as PDF" aria-label="Export employment by sector as PDF">PDF</button>
+        </div>
+      </div>
+    </div>
   </div>
 </form>
 
@@ -127,4 +161,4 @@
   </div>
 </div>
 
-<%- include('footer') %>
+<%- include('../partials/footer') %>

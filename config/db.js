@@ -3,7 +3,7 @@
 var { Sequelize } = require('sequelize');
 
 var sequelize = new Sequelize(
-  process.env.DB_NAME || 'alumni_influencers',
+  process.env.DB_NAME || 'w1871486_alumni_influencers',
   process.env.DB_USER || 'root',
   process.env.DB_PASSWORD || '',
   {

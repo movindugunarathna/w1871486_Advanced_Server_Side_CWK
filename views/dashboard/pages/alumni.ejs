@@ -1,17 +1,23 @@
 <% var pageTitle = 'Alumni Browser'; %>
-<%- include('layout') %>
+<%- include('../partials/layout') %>
 
 <h2 class="mb-4">Alumni Browser</h2>
 
 <form id="alumniFilterForm" class="row g-2 mb-4">
   <div class="col-md-3">
-    <input name="programme" class="form-control" placeholder="Programme...">
+    <select name="programme" class="form-select" id="alumniProgrammeFilter">
+      <option value="">All Programmes</option>
+    </select>
   </div>
   <div class="col-md-2">
-    <input name="graduationYear" type="number" class="form-control" placeholder="Graduation Year">
+    <select name="graduationYear" class="form-select" id="alumniGraduationYearFilter">
+      <option value="">All Graduation Years</option>
+    </select>
   </div>
   <div class="col-md-3">
-    <input name="industrySector" class="form-control" placeholder="Industry Sector...">
+    <select name="industrySector" class="form-select" id="alumniIndustrySectorFilter">
+      <option value="">All Industry Sectors / Roles</option>
+    </select>
   </div>
   <div class="col-md-2">
     <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
@@ -20,6 +26,8 @@
     <button type="reset" class="btn btn-outline-secondary w-100" id="clearAlumniFilters">Clear</button>
   </div>
 </form>
+
+<button id="exportAlumniCsv" class="btn btn-outline-success mb-3">Export Alumni CSV</button>
 
 <div id="alumniLoading" class="text-center py-4" style="display:none;">
   <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -48,4 +56,4 @@
   </ul>
 </nav>
 
-<%- include('footer') %>
+<%- include('../partials/footer') %>

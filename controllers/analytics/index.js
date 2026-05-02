@@ -3,9 +3,12 @@
 var express = require('express');
 var router = express.Router();
 var { Op } = require('sequelize');
+var { parse } = require('json2csv');
+var PDFDocument = require('pdfkit');
 
 var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
-var { apiLimiter } = require('../../middleware/rateLimiter');
+var { analyticsLimiter, exportLimiter } = require('../../middleware/rateLimiter');
+var { analyticsQueryRules, validate } = require('../../middleware/validators');
 var {
   sequelize,
   User,
@@ -29,10 +32,11 @@ var buildDegreeWhere = function(programme, graduationYear) {
   }
 
   if (graduationYear) {
-    where.completionDate = sequelize.where(
-      sequelize.fn('YEAR', sequelize.col('completionDate')),
-      Number(graduationYear)
-    );
+    var yr = Number(graduationYear);
+    where.completionDate = {
+      [Op.gte]: new Date(yr, 0, 1),
+      [Op.lt]: new Date(yr + 1, 0, 1)
+    };
   }
 
   return where;
@@ -57,6 +61,163 @@ var getAnalyticsFilters = function(req) {
     graduationYear: req.query.graduationYear ? String(req.query.graduationYear).trim() : '',
     industrySector: req.query.industrySector ? String(req.query.industrySector).trim() : ''
   };
+};
+
+var buildExportDate = function() {
+  return new Date().toISOString().slice(0, 10);
+};
+
+var getSkillsGapData = async function(filters) {
+  var programme = filters.programme;
+  var graduationYear = filters.graduationYear;
+  var industrySector = filters.industrySector;
+  var degreeWhere = buildDegreeWhere(programme, graduationYear);
+  var hasDegreeFilter = !!programme || !!graduationYear;
+  var employmentWhere = buildEmploymentWhere(industrySector);
+  var profileInclude = [];
+
+  if (hasDegreeFilter) {
+    profileInclude.push({
+      model: Degree,
+      attributes: [],
+      where: degreeWhere,
+      required: true
+    });
+  }
+
+  if (employmentWhere) {
+    profileInclude.push({
+      model: Employment,
+      attributes: [],
+      where: employmentWhere,
+      required: true
+    });
+  }
+
+  var includeForSkills = [{
+    model: Profile,
+    attributes: [],
+    required: hasDegreeFilter || !!employmentWhere,
+    include: profileInclude
+  }];
+
+  var certRows = await Certification.findAll({
+    attributes: [
+      'name',
+      'issuingBody',
+      [sequelize.fn('COUNT', sequelize.col('Certification.id')), 'count']
+    ],
+    include: includeForSkills,
+    subQuery: false,
+    group: ['Certification.name', 'Certification.issuingBody'],
+    order: [[sequelize.fn('COUNT', sequelize.col('Certification.id')), 'DESC']],
+    limit: 20,
+    raw: true
+  });
+
+  var courseRows = await ProfessionalCourse.findAll({
+    attributes: [
+      'name',
+      'provider',
+      [sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'count']
+    ],
+    include: includeForSkills,
+    subQuery: false,
+    group: ['ProfessionalCourse.name', 'ProfessionalCourse.provider'],
+    order: [[sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'DESC']],
+    limit: 20,
+    raw: true
+  });
+
+  var certifications = certRows.map(function(row) {
+    return {
+      name: row.name,
+      issuingBody: row.issuingBody,
+      count: parseInt(row.count, 10) || 0
+    };
+  });
+
+  var professionalCourses = courseRows.map(function(row) {
+    return {
+      name: row.name,
+      provider: row.provider,
+      count: parseInt(row.count, 10) || 0
+    };
+  });
+
+  var topSkillGaps = certifications
+    .map(function(item) {
+      return {
+        skill: item.name,
+        type: 'certification',
+        source: item.issuingBody,
+        count: item.count
+      };
+    })
+    .concat(
+      professionalCourses.map(function(item) {
+        return {
+          skill: item.name,
+          type: 'course',
+          source: item.provider,
+          count: item.count
+        };
+      })
+    )
+    .sort(function(a, b) { return b.count - a.count; })
+    .slice(0, 10);
+
+  return {
+    certifications: certifications,
+    professionalCourses: professionalCourses,
+    topSkillGaps: topSkillGaps
+  };
+};
+
+var getEmploymentBySectorData = async function(filters) {
+  var profileNestedIncludes = buildNestedProfileIncludes(
+    filters.programme,
+    filters.graduationYear,
+    filters.industrySector
+  );
+  var employmentWhere = buildEmploymentWhere(filters.industrySector);
+  var includeProfile = [{
+    model: Profile,
+    attributes: [],
+    required: profileNestedIncludes.length > 0,
+    include: profileNestedIncludes
+  }];
+
+  var groupedRows = await Employment.findAll({
+    attributes: [
+      ['company', 'sector'],
+      [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'alumniCount']
+    ],
+    where: employmentWhere || undefined,
+    include: includeProfile,
+    group: ['Employment.company'],
+    order: [[sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'DESC']],
+    raw: true
+  });
+
+  var totalDistinctUsers = await Employment.count({
+    where: employmentWhere || undefined,
+    include: includeProfile,
+    distinct: true,
+    col: 'profileId'
+  });
+
+  return groupedRows.map(function(row) {
+    var alumniCount = parseInt(row.alumniCount, 10) || 0;
+    var percentage = totalDistinctUsers > 0
+      ? Math.round((alumniCount / totalDistinctUsers) * 1000) / 10
+      : 0;
+    return {
+      sector: row.sector,
+      alumniCount: alumniCount,
+      percentage: percentage
+    };
+  });
 };
 
 var buildNestedProfileIncludes = function(programme, graduationYear, industrySector) {
@@ -158,7 +319,7 @@ var buildNestedProfileIncludes = function(programme, graduationYear, industrySec
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
  */
-router.get('/overview', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/overview', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   try {
     var results = await Promise.all([
       User.count({ where: { role: 'alumnus', isVerified: true } }),
@@ -302,116 +463,17 @@ router.get('/overview', apiKeyAuth, hasPermission('read:analytics'), apiLimiter,
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
  */
-router.get('/skills-gap', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/skills-gap', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
-  var programme = filters.programme;
-  var graduationYear = filters.graduationYear;
-  var industrySector = filters.industrySector;
-
-  var degreeWhere = buildDegreeWhere(programme, graduationYear);
-  var hasDegreeFilter = !!programme || !!graduationYear;
-  var employmentWhere = buildEmploymentWhere(industrySector);
-
-  var profileInclude = [];
-  if (hasDegreeFilter) {
-    profileInclude.push({
-      model: Degree,
-      attributes: [],
-      where: degreeWhere,
-      required: true
-    });
-  }
-  if (employmentWhere) {
-    profileInclude.push({
-      model: Employment,
-      attributes: [],
-      where: employmentWhere,
-      required: true
-    });
-  }
 
   try {
-    var includeForSkills = [{
-      model: Profile,
-      attributes: [],
-      required: hasDegreeFilter || !!employmentWhere,
-      include: profileInclude
-    }];
-
-    var certRows = await Certification.findAll({
-      attributes: [
-        'name',
-        'issuingBody',
-        [sequelize.fn('COUNT', sequelize.col('Certification.id')), 'count']
-      ],
-      include: includeForSkills,
-      group: ['Certification.name', 'Certification.issuingBody'],
-      order: [[sequelize.fn('COUNT', sequelize.col('Certification.id')), 'DESC']],
-      limit: 20,
-      raw: true
-    });
-
-    var courseRows = await ProfessionalCourse.findAll({
-      attributes: [
-        'name',
-        'provider',
-        [sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'count']
-      ],
-      include: includeForSkills,
-      group: ['ProfessionalCourse.name', 'ProfessionalCourse.provider'],
-      order: [[sequelize.fn('COUNT', sequelize.col('ProfessionalCourse.id')), 'DESC']],
-      limit: 20,
-      raw: true
-    });
-
-    var certifications = certRows.map(function(row) {
-      return {
-        name: row.name,
-        issuingBody: row.issuingBody,
-        count: parseInt(row.count, 10) || 0
-      };
-    });
-
-    var professionalCourses = courseRows.map(function(row) {
-      return {
-        name: row.name,
-        provider: row.provider,
-        count: parseInt(row.count, 10) || 0
-      };
-    });
-
-    var merged = certifications
-      .map(function(item) {
-        return {
-          skill: item.name,
-          type: 'certification',
-          source: item.issuingBody,
-          count: item.count
-        };
-      })
-      .concat(
-        professionalCourses.map(function(item) {
-          return {
-            skill: item.name,
-            type: 'course',
-            source: item.provider,
-            count: item.count
-          };
-        })
-      )
-      .sort(function(a, b) { return b.count - a.count; });
-
-    var topSkillGaps = merged.slice(0, 10);
+    var data = await getSkillsGapData(filters);
 
     res.set('Cache-Control', 'public, max-age=300');
 
     return res.json({
       success: true,
-      data: {
-        certifications: certifications,
-        professionalCourses: professionalCourses,
-        topSkillGaps: topSkillGaps
-      }
+      data: data
     });
   } catch (err) {
     console.error('Analytics skills-gap error:', err);
@@ -450,54 +512,11 @@ router.get('/skills-gap', apiKeyAuth, hasPermission('read:analytics'), apiLimite
  *       500:
  *         description: Server error
  */
-router.get('/employment-by-sector', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/employment-by-sector', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
-  var profileNestedIncludes = buildNestedProfileIncludes(
-    filters.programme,
-    filters.graduationYear,
-    filters.industrySector
-  );
-  var employmentWhere = buildEmploymentWhere(filters.industrySector);
 
   try {
-    var includeProfile = [{
-      model: Profile,
-      attributes: [],
-      required: profileNestedIncludes.length > 0,
-      include: profileNestedIncludes
-    }];
-
-    var groupedRows = await Employment.findAll({
-      attributes: [
-        ['company', 'sector'],
-        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'alumniCount']
-      ],
-      where: employmentWhere || undefined,
-      include: includeProfile,
-      group: ['Employment.company'],
-      order: [[sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'DESC']],
-      raw: true
-    });
-
-    var totalDistinctUsers = await Employment.count({
-      where: employmentWhere || undefined,
-      include: includeProfile,
-      distinct: true,
-      col: 'Profile.userId'
-    });
-
-    var sectors = groupedRows.map(function(row) {
-      var alumniCount = parseInt(row.alumniCount, 10) || 0;
-      var percentage = totalDistinctUsers > 0
-        ? Math.round((alumniCount / totalDistinctUsers) * 1000) / 10
-        : 0;
-
-      return {
-        sector: row.sector,
-        alumniCount: alumniCount,
-        percentage: percentage
-      };
-    });
+    var sectors = await getEmploymentBySectorData(filters);
 
     res.set('Cache-Control', 'public, max-age=300');
     return res.json({ success: true, data: { sectors: sectors } });
@@ -538,7 +557,7 @@ router.get('/employment-by-sector', apiKeyAuth, hasPermission('read:analytics'),
  *       500:
  *         description: Server error
  */
-router.get('/job-titles', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/job-titles', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
   var profileNestedIncludes = buildNestedProfileIncludes(
     filters.programme,
@@ -560,6 +579,7 @@ router.get('/job-titles', apiKeyAuth, hasPermission('read:analytics'), apiLimite
         required: profileNestedIncludes.length > 0,
         include: profileNestedIncludes
       }],
+      subQuery: false,
       group: ['Employment.role'],
       order: [[sequelize.fn('COUNT', sequelize.col('Employment.id')), 'DESC']],
       limit: 20,
@@ -621,7 +641,7 @@ router.get('/job-titles', apiKeyAuth, hasPermission('read:analytics'), apiLimite
  *       500:
  *         description: Server error
  */
-router.get('/top-employers', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/top-employers', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
   var parsedLimit = req.query.limit === undefined ? 10 : Number(req.query.limit);
 
@@ -652,6 +672,7 @@ router.get('/top-employers', apiKeyAuth, hasPermission('read:analytics'), apiLim
         required: profileNestedIncludes.length > 0,
         include: profileNestedIncludes
       }],
+      subQuery: false,
       group: ['Employment.company'],
       order: [[sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Profile.userId'))), 'DESC']],
       limit: parsedLimit,
@@ -704,7 +725,7 @@ router.get('/top-employers', apiKeyAuth, hasPermission('read:analytics'), apiLim
  *       500:
  *         description: Server error
  */
-router.get('/career-trends', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/career-trends', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
   var since12Months = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
   var profileNestedIncludes = buildNestedProfileIncludes(
@@ -800,7 +821,7 @@ router.get('/career-trends', apiKeyAuth, hasPermission('read:analytics'), apiLim
  *       500:
  *         description: Server error
  */
-router.get('/profile-completion-rate', apiKeyAuth, hasPermission('read:analytics'), apiLimiter, async function(req, res) {
+router.get('/profile-completion-rate', apiKeyAuth, hasPermission('read:analytics'), analyticsQueryRules, validate, analyticsLimiter, async function(req, res) {
   var filters = getAnalyticsFilters(req);
   var profileNestedIncludes = buildNestedProfileIncludes(
     filters.programme,
@@ -820,7 +841,7 @@ router.get('/profile-completion-rate', apiKeyAuth, hasPermission('read:analytics
       where: where || undefined,
       include: baseInclude.concat(extraInclude || []),
       distinct: true,
-      col: 'Profile.id'
+      col: 'id'
     });
   };
 
@@ -864,5 +885,189 @@ router.get('/profile-completion-rate', apiKeyAuth, hasPermission('read:analytics
   } catch (err) {
     console.error('Analytics profile-completion-rate error:', err);
     return res.status(500).json({ success: false, message: 'Failed to load profile completion analytics' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/analytics/export/skills-gap:
+ *   get:
+ *     summary: Export skills gap data as CSV or PDF
+ *     description: Downloads certifications and professional courses frequency data. Response is a binary file, not JSON.
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [csv, pdf]
+ *         description: Output format
+ *       - in: query
+ *         name: programme
+ *         schema: { type: string }
+ *       - in: query
+ *         name: graduationYear
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: industrySector
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: File download (text/csv or application/pdf)
+ *         content:
+ *           text/csv:
+ *             schema: { type: string, format: binary }
+ *           application/pdf:
+ *             schema: { type: string, format: binary }
+ *       400:
+ *         description: Invalid format parameter
+ *       401:
+ *         description: Missing or invalid API key
+ *       403:
+ *         description: "Insufficient permissions. Required scope: read:analytics"
+ *       429:
+ *         description: Export rate limit exceeded (10 per 15 min)
+ *       500:
+ *         description: Server error
+ */
+router.get('/export/skills-gap', apiKeyAuth, hasPermission('read:analytics'), exportLimiter, async function(req, res) {
+  var format = String(req.query.format || '').toLowerCase();
+
+  if (format !== 'csv' && format !== 'pdf') {
+    return res.status(400).json({ success: false, message: 'format must be csv or pdf' });
+  }
+
+  try {
+    var data = await getSkillsGapData(getAnalyticsFilters(req));
+    var certifications = data.certifications;
+    var courses = data.professionalCourses;
+    var exportDate = buildExportDate();
+
+    if (format === 'csv') {
+      var fields = ['type', 'name', 'source', 'count'];
+      var rows = certifications.map(function(item) {
+        return { type: 'certification', name: item.name, source: item.issuingBody || '', count: item.count };
+      }).concat(
+        courses.map(function(item) {
+          return { type: 'course', name: item.name, source: item.provider || '', count: item.count };
+        })
+      );
+      var csv = parse(rows, { fields: fields });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="skills-gap-' + exportDate + '.csv"');
+      return res.send(csv);
+    }
+
+    var doc = new PDFDocument({ margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="skills-gap-' + exportDate + '.pdf"');
+    doc.pipe(res);
+    doc.fontSize(18).text('Skills Gap Analysis Report', { align: 'center' });
+    doc.fontSize(10).text('Generated: ' + new Date().toLocaleDateString(), { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).text('Top Certifications');
+    doc.moveDown(0.5);
+    certifications.forEach(function(c, i) {
+      doc.fontSize(10).text((i + 1) + '. ' + c.name + ' (' + (c.issuingBody || 'Unknown') + ') - ' + c.count + ' alumni');
+    });
+    doc.moveDown();
+    doc.fontSize(14).text('Top Professional Courses');
+    doc.moveDown(0.5);
+    courses.forEach(function(c, i) {
+      doc.fontSize(10).text((i + 1) + '. ' + c.name + ' (' + (c.provider || 'Unknown') + ') - ' + c.count + ' alumni');
+    });
+    doc.end();
+  } catch (err) {
+    console.error('Analytics export skills-gap error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to export skills gap analytics' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/analytics/export/employment:
+ *   get:
+ *     summary: Export employment-by-sector data as CSV or PDF
+ *     description: Downloads employment sector breakdown. Response is a binary file, not JSON.
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [csv, pdf]
+ *         description: Output format
+ *       - in: query
+ *         name: programme
+ *         schema: { type: string }
+ *       - in: query
+ *         name: graduationYear
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: industrySector
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: File download (text/csv or application/pdf)
+ *         content:
+ *           text/csv:
+ *             schema: { type: string, format: binary }
+ *           application/pdf:
+ *             schema: { type: string, format: binary }
+ *       400:
+ *         description: Invalid format parameter
+ *       401:
+ *         description: Missing or invalid API key
+ *       403:
+ *         description: "Insufficient permissions. Required scope: read:analytics"
+ *       429:
+ *         description: Export rate limit exceeded (10 per 15 min)
+ *       500:
+ *         description: Server error
+ */
+router.get('/export/employment', apiKeyAuth, hasPermission('read:analytics'), exportLimiter, async function(req, res) {
+  var format = String(req.query.format || '').toLowerCase();
+
+  if (format !== 'csv' && format !== 'pdf') {
+    return res.status(400).json({ success: false, message: 'format must be csv or pdf' });
+  }
+
+  try {
+    var sectors = await getEmploymentBySectorData(getAnalyticsFilters(req));
+    var exportDate = buildExportDate();
+
+    if (format === 'csv') {
+      var fields = ['sector', 'alumniCount', 'percentage'];
+      var csv = parse(sectors, { fields: fields });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="employment-by-sector-' + exportDate + '.csv"');
+      return res.send(csv);
+    }
+
+    var doc = new PDFDocument({ margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="employment-by-sector-' + exportDate + '.pdf"');
+    doc.pipe(res);
+    doc.fontSize(18).text('Employment by Sector Report', { align: 'center' });
+    doc.fontSize(10).text('Generated: ' + new Date().toLocaleDateString(), { align: 'center' });
+    doc.moveDown();
+    sectors.forEach(function(item, i) {
+      doc
+        .fontSize(10)
+        .text(
+          (i + 1) + '. ' + (item.sector || 'Unknown') +
+          ' - ' + item.alumniCount + ' alumni (' + item.percentage + '%)'
+        );
+    });
+    doc.end();
+  } catch (err) {
+    console.error('Analytics export employment error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to export employment analytics' });
   }
 });

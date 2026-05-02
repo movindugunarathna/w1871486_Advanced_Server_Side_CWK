@@ -107,20 +107,17 @@ exports.apiKeyCreateRules = [
   body('permissions')
     .isArray().withMessage('permissions must be an array')
     .custom(function(arr) {
-      var allowed = ['read:alumni', 'read:analytics', 'read:alumni_of_day'];
+      var allowed = ['read:alumni', 'read:analytics', 'read:alumni_of_day', 'read:donations'];
       return arr.every(function(permission) {
         return allowed.includes(permission);
       });
     }).withMessage('Invalid permission scope')
 ];
 
-// Alumni browse query validation
-exports.alumniQueryRules = [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-  query('graduationYear').optional().isInt({ min: 1900, max: 2100 }).toInt(),
-  query('programme').optional().trim().isLength({ max: 100 }).escape(),
-  query('industrySector').optional().trim().isLength({ max: 100 }).escape(),
-  query('sortBy').optional().isIn(['name', 'graduationYear']),
-  query('order').optional().isIn(['ASC', 'DESC'])
+// Analytics endpoint query validation (programme, graduationYear, industrySector, limit)
+exports.analyticsQueryRules = [
+  query('programme').optional().trim().isLength({ max: 100 }).withMessage('programme must be at most 100 characters').escape(),
+  query('graduationYear').optional().isInt({ min: 1900, max: 2100 }).withMessage('graduationYear must be between 1900 and 2100').toInt(),
+  query('industrySector').optional().trim().isLength({ max: 100 }).withMessage('industrySector must be at most 100 characters').escape(),
+  query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('limit must be an integer between 1 and 50').toInt()
 ];

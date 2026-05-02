@@ -11,11 +11,14 @@ var methodOverride = require('method-override');
 var helmet = require('helmet');
 var cors = require('cors');
 
+var errorHandler = require('./middleware/errorHandler');
+
 var swaggerUi = require('swagger-ui-express');
 var swaggerSpec = require('./swagger/swagger');
 
 var { sequelize } = require('./models');
 var scheduler = require('./utils/scheduler');
+var ensureDatabaseExists = require('./config/ensureDatabase');
 
 var app = module.exports = express();
 
@@ -56,7 +59,7 @@ var sessionStore = new MySQLStore({
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'alumni_influencers',
+  database: process.env.DB_NAME || 'w1871486_alumni_influencers',
   // Keep server-side session expiry aligned with the cookie maxAge (inactivity timeout).
   expiration: 30 * 60 * 1000 // 30 minutes
 });
@@ -98,22 +101,35 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Auto-load controllers (from boilerplate boot.js)
 require('./lib/boot')(app, { verbose: !module.parent });
 
-// Error handling middleware
-app.use(function(err, req, res, next){
+// Error handling middleware (JSON errors for API routes, HTML for page routes)
+app.use(function(err, req, res, next) {
+  var acceptsJson = req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'));
+  if (acceptsJson) {
+    return errorHandler(err, req, res, next);
+  }
   if (!module.parent) console.error(err.stack);
-  res.status(500).render('5xx');
+  res.status(500).render('errors/5xx');
 });
 
 // 404 handler
 app.use(function(req, res, next){
-  res.status(404).render('404', { url: req.originalUrl });
+  res.status(404).render('errors/404', { url: req.originalUrl });
 });
 
 // Start server with DB sync
 if (!module.parent) {
   var PORT = process.env.PORT || 5000;
 
-  sequelize.authenticate()
+  // Warn if analytics dashboard key is missing
+  if (!process.env.ANALYTICS_API_KEY) {
+    console.warn('[WARN] ANALYTICS_API_KEY is not set — dashboard charts and exports will fail.');
+  }
+
+  ensureDatabaseExists()
+    .then(function() {
+      console.log('Database ensured: ' + (process.env.DB_NAME || 'w1871486_alumni_influencers'));
+      return sequelize.authenticate();
+    })
     .then(function() {
       console.log('MySQL connected via XAMPP');
       return sequelize.sync();

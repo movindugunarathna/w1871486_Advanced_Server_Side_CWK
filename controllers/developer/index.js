@@ -24,7 +24,8 @@ router.use(isDeveloper);
  *     description: >
  *       Creates a cryptographically random API key with explicit scopes.
  *       Supported scopes: read:alumni (analytics dashboard), read:analytics (analytics dashboard),
- *       read:alumni_of_day (mobile AR app). The full key value is returned only once in this response.
+ *       read:alumni_of_day (mobile AR app), read:donations (donations data).
+ *       The full key value is returned only once in this response.
  *     tags: [Developer]
  *     security:
  *       - sessionAuth: []
@@ -45,7 +46,7 @@ router.use(isDeveloper);
  *                 description: Scopes granted to this API key
  *                 items:
  *                   type: string
- *                   enum: [read:alumni, read:analytics, read:alumni_of_day]
+ *                   enum: [read:alumni, read:analytics, read:alumni_of_day, read:donations]
  *     responses:
  *       201:
  *         description: API key created — full key shown once

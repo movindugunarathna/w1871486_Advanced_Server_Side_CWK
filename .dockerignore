@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log*
+.env
+.env.*
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+README.md
+implementation-plan.md
+cookies.txt
+analytics-dashboard-demo-data.json
+uploads/profiles/*
+!uploads/profiles/.gitkeep

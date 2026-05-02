@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email — University Analytics Dashboard</title>
+  <link href="/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body class="bg-light">
+  <div class="container">
+    <div class="row justify-content-center mt-5">
+      <div class="col-md-5">
+        <div class="card shadow-sm">
+          <div class="card-body p-4 text-center">
+            <h3 class="card-title mb-4">Email Verification</h3>
+            <% if (success) { %>
+              <div class="alert alert-success"><%= success %></div>
+              <a href="/dashboard/login" class="btn btn-primary mt-2">Sign In</a>
+            <% } else { %>
+              <div class="alert alert-danger"><%= error %></div>
+              <a href="/dashboard/register" class="btn btn-outline-secondary mt-2">Back to Register</a>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

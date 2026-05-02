@@ -11,7 +11,7 @@ module.exports = {
     port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    name: process.env.DB_NAME || 'alumni_influencers'
+    name: process.env.DB_NAME || 'w1871486_alumni_influencers'
   },
 
   // Auth

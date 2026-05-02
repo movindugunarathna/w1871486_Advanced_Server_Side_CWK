@@ -5,15 +5,15 @@ var router = express.Router();
 
 var rateLimit = require('express-rate-limit');
 var { Op } = require('sequelize');
+var { parse } = require('json2csv');
 
 var { apiKeyAuth, hasPermission } = require('../../middleware/apiKeyAuth');
 var { validate, alumniQueryRules } = require('../../middleware/validators');
-var { alumniQueryRules, validate } = require('../../middleware/validators');
+var { exportLimiter } = require('../../middleware/rateLimiter');
 var {
   sequelize,
   User,
   FeaturedAlumnus,
-  User,
   Profile,
   Degree,
   Certification,
@@ -97,6 +97,15 @@ var apiKeyLimiter = rateLimit({
  *               $ref: '#/components/schemas/ErrorMessage'
  */
 var profileAssociations = [Degree, Certification, Licence, ProfessionalCourse, Employment];
+var CSV_DANGEROUS_PREFIX = /^[=+\-@]/;
+
+var sanitizeCsvCell = function(value) {
+  var str = value == null ? '' : String(value);
+  if (CSV_DANGEROUS_PREFIX.test(str)) {
+    return "'" + str;
+  }
+  return str;
+};
 
 router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day'), apiKeyLimiter, async function(req, res) {
   try {
@@ -396,6 +405,160 @@ router.get('/alumni', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules
   } catch (err) {
     console.error('Alumni browse error:', err);
     return res.status(500).json({ success: false, message: 'Failed to load alumni list' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/alumni/export:
+ *   get:
+ *     summary: Export alumni list as CSV
+ *     description: >
+ *       Downloads a CSV of all matching alumni (up to 5000 rows). Applies the same filters
+ *       as GET /api/alumni. Response is a binary CSV file, not JSON.
+ *     tags: [Alumni Browse]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [csv]
+ *         description: Must be "csv"
+ *       - in: query
+ *         name: programme
+ *         schema: { type: string }
+ *       - in: query
+ *         name: graduationYear
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: industrySector
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema: { type: string, format: binary }
+ *       400:
+ *         description: Invalid format parameter
+ *       401:
+ *         description: Missing or invalid API key
+ *       403:
+ *         description: "Insufficient permissions. Required scope: read:alumni"
+ *       429:
+ *         description: Export rate limit exceeded (10 per 15 min)
+ *       500:
+ *         description: Server error
+ */
+router.get('/alumni/export', apiKeyAuth, hasPermission('read:alumni'), alumniQueryRules, validate, exportLimiter, async function(req, res) {
+  if (String(req.query.format || '').toLowerCase() !== 'csv') {
+    return res.status(400).json({ success: false, message: 'format must be csv' });
+  }
+
+  try {
+    var programme = req.query.programme ? String(req.query.programme).trim() : '';
+    var graduationYear = req.query.graduationYear || '';
+    var industrySector = req.query.industrySector ? String(req.query.industrySector).trim() : '';
+
+    var degreeFilter = null;
+    if (programme || graduationYear) {
+      degreeFilter = {};
+      if (programme) {
+        degreeFilter.name = { [Op.like]: '%' + programme + '%' };
+      }
+      if (graduationYear) {
+        degreeFilter.completionDate = sequelize.where(
+          sequelize.fn('YEAR', sequelize.col('Degrees.completionDate')),
+          Number(graduationYear)
+        );
+      }
+    }
+
+    var sectorFilter = null;
+    if (industrySector) {
+      sectorFilter = {
+        [Op.or]: [
+          { company: { [Op.like]: '%' + industrySector + '%' } },
+          { role: { [Op.like]: '%' + industrySector + '%' } }
+        ]
+      };
+    }
+
+    var rows = await Profile.findAll({
+      include: [
+        {
+          model: User,
+          attributes: [],
+          where: { role: 'alumnus', isVerified: true },
+          required: true
+        },
+        {
+          model: Degree,
+          attributes: ['name', 'university', 'completionDate'],
+          where: degreeFilter || undefined,
+          required: !!degreeFilter
+        },
+        {
+          model: Certification,
+          attributes: ['id']
+        },
+        {
+          model: Employment,
+          attributes: ['company', 'role', 'startDate', 'endDate'],
+          where: sectorFilter || undefined,
+          required: !!sectorFilter
+        }
+      ],
+      attributes: ['firstName', 'lastName', 'linkedInUrl'],
+      order: [['firstName', 'ASC'], ['lastName', 'ASC']],
+      limit: 5000,
+      distinct: true
+    });
+
+    var flattened = rows.map(function(profile) {
+      var degree = (profile.Degrees && profile.Degrees.length) ? profile.Degrees[0] : null;
+      var sortedEmployment = (profile.Employments || []).slice().sort(function(a, b) {
+        var aDate = a.endDate || a.startDate || new Date(0);
+        var bDate = b.endDate || b.startDate || new Date(0);
+        return new Date(aDate) - new Date(bDate);
+      });
+      var latestEmployment = sortedEmployment.length ? sortedEmployment[sortedEmployment.length - 1] : null;
+
+      return {
+        firstName: sanitizeCsvCell(profile.firstName || ''),
+        lastName: sanitizeCsvCell(profile.lastName || ''),
+        programme: sanitizeCsvCell(degree ? (degree.name || '') : ''),
+        university: sanitizeCsvCell(degree ? (degree.university || '') : ''),
+        graduationYear: degree && degree.completionDate ? new Date(degree.completionDate).getFullYear() : '',
+        currentEmployer: sanitizeCsvCell(latestEmployment ? (latestEmployment.company || '') : ''),
+        currentRole: sanitizeCsvCell(latestEmployment ? (latestEmployment.role || '') : ''),
+        certificationsCount: (profile.Certifications || []).length,
+        linkedInUrl: sanitizeCsvCell(profile.linkedInUrl || '')
+      };
+    });
+
+    var fields = [
+      'firstName',
+      'lastName',
+      'programme',
+      'university',
+      'graduationYear',
+      'currentEmployer',
+      'currentRole',
+      'certificationsCount',
+      'linkedInUrl'
+    ];
+    var csv = parse(flattened, { fields: fields });
+    var exportDate = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="alumni-export-' + exportDate + '.csv"');
+    return res.send(csv);
+  } catch (err) {
+    console.error('Alumni export error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to export alumni list' });
   }
 });
 
