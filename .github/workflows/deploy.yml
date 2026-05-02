@@ -122,8 +122,6 @@ jobs:
 
             sed -i 's/^[[:space:]]*//' .env
 
-            export IMAGE_NAME="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-
             docker compose pull app
             docker compose up -d --force-recreate --remove-orphans
             docker image prune -af --filter "until=48h"

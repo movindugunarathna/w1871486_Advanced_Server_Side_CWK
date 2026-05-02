@@ -22,7 +22,7 @@ services:
       - alumni-network
 
   app:
-    image: ${IMAGE_NAME:-ghcr.io/alumni-api:latest}
+    image: ghcr.io/movindugunarathna/w1871486_advanced_server_side_cwk:latest
     container_name: alumni-app
     restart: unless-stopped
     depends_on:
