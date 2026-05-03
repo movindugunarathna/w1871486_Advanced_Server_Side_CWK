@@ -489,7 +489,7 @@ docker compose up -d
 docker compose logs -f app
 
 # Seed the database (first time)
-docker compose exec app node utils/seed.js
+node utils/vm-seed-dummies.js
 ```
 
 ### Health Check

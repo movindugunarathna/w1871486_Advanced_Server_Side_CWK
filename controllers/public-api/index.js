@@ -139,7 +139,7 @@ router.get('/alumni-of-the-day', apiKeyAuth, hasPermission('read:alumni_of_day')
       return res.status(200).json({
         featured: null,
         message:
-          'No featured alumnus in the database. From the project root run: node utils/seed.js ' +
+          'No featured alumnus in the database. From the project root run: node utils/vm-seed-dummies.js or node utils/seed-alumni-batch.js 40 ' +
           '(uses your .env DB_NAME). Then restart the server and create a new API key.'
       });
     }

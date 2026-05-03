@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed": "node utils/seed.js"
+    "seed:dummy": "node utils/vm-seed-dummies.js",
+    "seed:dummy:40": "node utils/seed-alumni-batch.js 40",
+    "seed:dummy:50": "node utils/seed-alumni-batch.js 50"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
