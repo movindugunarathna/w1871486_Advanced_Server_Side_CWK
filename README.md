@@ -173,7 +173,7 @@ If `DASHBOARD_DEMO_MODE=true`, dashboard analytics endpoints are served from `an
 | `DB_NAME` | Database name | `alumni_influencers` |
 | `PORT` | Express server port | `5000` |
 | `NODE_ENV` | Environment | `development` |
-| `BASE_URL` | Full server URL | `http://localhost:5000` |
+| `BASE_URL` | Full server URL (used in verification & password-reset emails, Swagger) | `http://localhost:5000` or your droplet `http://IP:5000` |
 | `SESSION_SECRET` | Session signing secret | *(change this)* |
 | `JWT_SECRET` | JWT signing secret | *(change this)* |
 | `EMAIL_HOST` | SMTP host | `smtp.ethereal.email` |
@@ -182,7 +182,7 @@ If `DASHBOARD_DEMO_MODE=true`, dashboard analytics endpoints are served from `an
 | `EMAIL_PASS` | SMTP password | *(empty → Ethereal auto-config)* |
 | `EMAIL_FROM` | From address | `noreply@eastminster.ac.uk` |
 | `UNIVERSITY_DOMAIN` | Allowed email domain | `@eastminster.ac.uk` |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:5000` |
+| `CORS_ORIGIN` | Allowed browser origin (must match how users open the app) | Same host as `BASE_URL` |
 | `ANALYTICS_API_KEY` | API key for dashboard proxy | *(generate via API)* |
 | `DASHBOARD_DEMO_MODE` | Serve dashboard analytics from local demo JSON (`analytics-dashboard-demo-data.json`) | `false` |
 | `AR_APP_API_KEY` | API key for AR App | *(generate via API)* |

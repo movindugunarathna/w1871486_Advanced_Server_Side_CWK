@@ -18,7 +18,7 @@ var options = {
     servers: [
       {
         url: env.baseUrl,
-        description: 'Development server'
+        description: 'Server (from BASE_URL in .env)'
       }
     ],
     components: {
