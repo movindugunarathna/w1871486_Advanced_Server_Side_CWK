@@ -85,8 +85,8 @@ app.use(session({
   cookie: {
     maxAge: 30 * 60 * 1000, // 30 minutes
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    secure: String(process.env.BASE_URL || '').indexOf('https://') === 0,
+    sameSite: 'lax'
   }
 }));
 
