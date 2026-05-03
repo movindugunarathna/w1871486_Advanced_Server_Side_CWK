@@ -6,7 +6,6 @@ var express = require('express');
 var logger = require('morgan');
 var path = require('node:path');
 var session = require('express-session');
-var MySQLStore = require('express-mysql-session')(session);
 var methodOverride = require('method-override');
 var helmet = require('helmet');
 var cors = require('cors');
@@ -64,23 +63,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 
-// Session store (XAMPP MySQL)
-var sessionStore = new MySQLStore({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'w1871486_alumni_influencers',
-  // Keep server-side session expiry aligned with the cookie maxAge (inactivity timeout).
-  expiration: 30 * 60 * 1000 // 30 minutes
-});
-
+// In-memory session store (sessions are lost on server restart).
 app.use(session({
-  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'alumni-secret-change-me',
   resave: false,
   saveUninitialized: false,
-  // Extend the session cookie expiry on activity (inactivity timeout behaviour).
   rolling: true,
   cookie: {
     maxAge: 30 * 60 * 1000, // 30 minutes

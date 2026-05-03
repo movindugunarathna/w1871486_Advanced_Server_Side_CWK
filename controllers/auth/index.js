@@ -68,16 +68,8 @@ function getValidResetTokenUser(token) {
     });
 }
 
-function invalidateUserSessions(userId) {
-  // express-mysql-session stores the session object as JSON in the `data` column.
-  // We delete any session whose stored JSON contains the matching userId.
-  var pattern1 = '%"userId":' + userId + '%';
-  var pattern2 = '%"userId":"' + userId + '"%';
-  return sequelize.query(
-    'DELETE FROM sessions WHERE data LIKE ? OR data LIKE ?',
-    { replacements: [pattern1, pattern2] }
-  );
-}
+// With MemoryStore there is no DB table to purge; the user's current session
+// is destroyed in the reset handler and other sessions expire naturally.
 
 // ─── Routes ───
 
@@ -714,13 +706,8 @@ router.post('/reset-password', resetPasswordRules, validate, function(req, res) 
           resetPasswordToken: null,
           resetPasswordTokenExpiry: null
         }).then(function() {
-          // Invalidate all active sessions for the user after a successful reset.
-          return invalidateUserSessions(user.id).then(function() {
-            res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
-          });
+          res.json({ success: true, message: 'Password reset successfully! You can now log in.' });
         });
-      }).then(function() {
-        // no-op: response is sent above
       });
     })
     .catch(function(err) {

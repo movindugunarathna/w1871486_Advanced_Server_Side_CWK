@@ -65,7 +65,7 @@ A full-stack university alumni platform with a blind-bidding system, developer A
 | Framework | Express 4 |
 | Database | MySQL via XAMPP (MariaDB) |
 | ORM | Sequelize 6 |
-| Auth | express-session + express-mysql-session |
+| Auth | express-session (in-memory store) |
 | Templating | EJS |
 | Frontend charts | Chart.js 4 |
 | UI | Bootstrap 5.3 |
