@@ -26,8 +26,18 @@ var app = module.exports = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Security middleware
-app.use(helmet());
+// Security middleware — omit upgrade-insecure-requests unless the public site is HTTPS.
+// Otherwise browsers block same-origin CSS/JS on http:// (they are upgraded to https:// and fail).
+var helmetCspDirectives = Object.assign(
+  {},
+  helmet.contentSecurityPolicy.getDefaultDirectives(),
+  (String(process.env.BASE_URL || '').indexOf('https://') === 0)
+    ? {}
+    : { 'upgrade-insecure-requests': null }
+);
+app.use(helmet({
+  contentSecurityPolicy: { directives: helmetCspDirectives }
+}));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5000',
   credentials: true
