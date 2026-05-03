@@ -1,9 +1,16 @@
 'use strict'
 
+var port = process.env.PORT || 5000;
+var isProduction = process.env.NODE_ENV === 'production';
+var defaultUrl = isProduction
+  ? 'http://143.244.140.115:' + port
+  : 'http://localhost:' + port;
+
 module.exports = {
-  port: process.env.PORT || 5000,
+  port: port,
   nodeEnv: process.env.NODE_ENV || 'development',
-  baseUrl: process.env.BASE_URL || 'http://localhost:5000',
+  baseUrl: process.env.BASE_URL || defaultUrl,
+  corsOrigin: process.env.CORS_ORIGIN || defaultUrl,
 
   // Database (XAMPP defaults)
   db: {

@@ -16,6 +16,7 @@ var errorHandler = require('./middleware/errorHandler');
 var swaggerUi = require('swagger-ui-express');
 var swaggerSpec = require('./swagger/swagger');
 
+var env = require('./config/env');
 var { sequelize } = require('./models');
 var scheduler = require('./utils/scheduler');
 var ensureDatabaseExists = require('./config/ensureDatabase');
@@ -39,7 +40,7 @@ app.use(helmet({
   contentSecurityPolicy: { directives: helmetCspDirectives }
 }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5000',
+  origin: env.corsOrigin,
   credentials: true
 }));
 
