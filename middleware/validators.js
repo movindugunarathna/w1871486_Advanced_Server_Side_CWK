@@ -98,13 +98,14 @@ exports.alumniQueryRules = [
   query('order').optional().isIn(['ASC', 'DESC']).withMessage('order must be ASC or DESC')
 ];
 
-// API Key creation validation
+// API Key creation validation (permissions optional — UI may send name only)
 exports.apiKeyCreateRules = [
   body('name')
     .trim()
     .notEmpty().withMessage('Name is required')
     .escape(),
   body('permissions')
+    .optional()
     .isArray().withMessage('permissions must be an array')
     .custom(function(arr) {
       var allowed = ['read:alumni', 'read:analytics', 'read:alumni_of_day', 'read:donations'];

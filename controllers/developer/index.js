@@ -35,7 +35,7 @@ router.use(isDeveloper);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, permissions]
+ *             required: [name]
  *             properties:
  *               name:
  *                 type: string
@@ -43,7 +43,7 @@ router.use(isDeveloper);
  *                 description: A friendly label for this key
  *               permissions:
  *                 type: array
- *                 description: Scopes granted to this API key
+ *                 description: Scopes (optional; defaults to alumni + analytics + alumni_of_day)
  *                 items:
  *                   type: string
  *                   enum: [read:alumni, read:analytics, read:alumni_of_day, read:donations]
@@ -92,10 +92,15 @@ router.use(isDeveloper);
  *             schema:
  *               $ref: '#/components/schemas/ErrorMessage'
  */
+var defaultApiKeyPermissions = ['read:alumni', 'read:analytics', 'read:alumni_of_day'];
+
 router.post('/api-keys', apiKeyCreateRules, validate, async function(req, res) {
   var developerId = req.session.userId;
   var name = req.body.name;
   var permissions = req.body.permissions;
+  if (!Array.isArray(permissions) || permissions.length === 0) {
+    permissions = defaultApiKeyPermissions.slice();
+  }
 
   try {
     var fullKey = crypto.randomBytes(32).toString('hex');

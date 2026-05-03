@@ -675,7 +675,10 @@
         e.preventDefault();
         api('/api/developer/api-keys', {
           method: 'POST',
-          body: { name: e.target.name.value }
+          body: {
+            name: e.target.name.value,
+            permissions: ['read:alumni', 'read:analytics', 'read:alumni_of_day']
+          }
         }).then(function (data) {
           var key = data.data ? data.data.key : data.key;
           document.getElementById('new-key-result').innerHTML =

@@ -12,6 +12,21 @@ var apiKeyAuth = async function(req, res, next) {
     }
 
     var key = authHeader.split(' ')[1];
+
+    // Dashboard proxy sends ANALYTICS_API_KEY; on a fresh VM that value may not exist in `api_keys`.
+    // Treat a matching env secret as a full-scope key (no DB row required).
+    var masterKey = process.env.ANALYTICS_API_KEY || '';
+    if (masterKey && key === masterKey) {
+      req.apiKey = {
+        id: null,
+        developerId: null,
+        permissions: ['read:alumni', 'read:alumni_of_day', 'read:analytics'],
+        isRevoked: false
+      };
+      req.apiKeyDeveloper = { id: null, apiKeyId: null };
+      return next();
+    }
+
     var apiKey = await ApiKey.findOne({ where: { key: key } });
 
     if (!apiKey) {
