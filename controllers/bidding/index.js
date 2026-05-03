@@ -488,8 +488,8 @@ router.get('/bid/:bidId/status', async function(req, res) {
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 10
- *           maximum: 50
+ *           default: 50
+ *           maximum: 100
  *     responses:
  *       200:
  *         description: Paginated bid history
@@ -513,6 +513,8 @@ router.get('/bid/:bidId/status', async function(req, res) {
  *                       type: integer
  *                     total:
  *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  *       401:
  *         description: Not signed in
  *         content:
@@ -529,26 +531,38 @@ router.get('/bid/:bidId/status', async function(req, res) {
 router.get('/history', async function(req, res) {
   var userId = req.session.userId;
   var page = parseInt(req.query.page, 10) || 1;
-  var limit = parseInt(req.query.limit, 10) || 10;
-  limit = Math.min(limit, 50);
+  var limit = parseInt(req.query.limit, 10) || 50;
+  limit = Math.min(Math.max(limit, 1), 100);
   var offset = (page - 1) * limit;
 
   try {
     var result = await Bid.findAndCountAll({
       where: { userId: userId },
-      attributes: ['id', 'bidDate', 'status'],
+      attributes: ['id', 'bidDate', 'status', 'amount', 'createdAt', 'updatedAt'],
       order: [['bidDate', 'DESC'], ['createdAt', 'DESC']],
       offset: offset,
       limit: limit
     });
 
+    var rows = result.rows.map(function(b) {
+      return {
+        id: b.id,
+        bidDate: b.bidDate,
+        status: b.status,
+        amount: Number(b.amount),
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt
+      };
+    });
+
     res.json({
       success: true,
-      data: result.rows,
+      data: rows,
       meta: {
         page: page,
         limit: limit,
-        total: result.count
+        total: result.count,
+        totalPages: Math.ceil(result.count / limit) || 1
       }
     });
   } catch (err) {

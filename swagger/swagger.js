@@ -154,7 +154,10 @@ var options = {
           properties: {
             id: { type: 'integer' },
             bidDate: { type: 'string', format: 'date' },
-            status: { type: 'string', enum: ['active', 'won', 'lost', 'cancelled'] }
+            status: { type: 'string', enum: ['active', 'won', 'lost', 'cancelled'] },
+            amount: { type: 'number', description: 'Own bid amount (history endpoint only)' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' }
           }
         },
         AlumniOfTheDay: {

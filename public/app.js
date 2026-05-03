@@ -473,18 +473,21 @@
 
   // ─── Bidding Pages ───
 
-  function renderBidding() {
+  function renderBidding(historyPage) {
+    historyPage = historyPage || 1;
     content.innerHTML = '<h2>Bidding Dashboard</h2><p>Loading...</p>';
 
     Promise.all([
       api('/api/bidding/slot').catch(function () { return null; }),
       api('/api/bidding/monthly-status').catch(function () { return null; }),
-      api('/api/bidding/history?page=1&limit=10').catch(function () { return null; })
+      api('/api/bidding/history?page=' + encodeURIComponent(historyPage) + '&limit=50').catch(function () { return null; })
     ]).then(function (results) {
       var slot = results[0];
       var monthly = results[1];
       var history = results[2];
       var currentBid = slot && slot.data ? slot.data.currentUserBid : null;
+      var tomorrowSlotDate = slot && slot.data ? slot.data.date : null;
+      var histMeta = history && history.meta ? history.meta : { page: 1, totalPages: 1, total: 0 };
 
       var html = '<h2>Bidding Dashboard</h2>';
 
@@ -525,23 +528,39 @@
       }
       html += '</div></div>';
 
-      // Bid history
+      // Bid history (paginated; amounts shown only to the signed-in user)
       html += '<div class="card mb-3"><div class="card-body">' +
-        '<h5>Bid History</h5>';
+        '<h5>Your bid history</h5>';
+      if (histMeta.total > 0) {
+        html += '<p class="text-muted small mb-2">Total bids: ' + histMeta.total + '</p>';
+      }
       if (history && history.data && history.data.length > 0) {
-        html += '<table class="table table-sm"><thead><tr>' +
-          '<th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+        html += '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+          '<th>Slot date</th><th>Amount</th><th>Status</th><th>Placed</th><th>Actions</th></tr></thead><tbody>';
         history.data.forEach(function (bid) {
+          var amt = bid.amount != null && bid.amount !== '' ? Number(bid.amount).toFixed(2) : '—';
           html += '<tr><td>' + escapeHtml(bid.bidDate) + '</td>' +
+            '<td>' + escapeHtml(amt) + '</td>' +
             '<td><span class="badge bg-' + bidStatusColor(bid.status) + '">' + bid.status + '</span></td>' +
+            '<td class="small text-muted">' + escapeHtml(bid.createdAt || '') + '</td>' +
             '<td>';
-          if (bid.status === 'active') {
-            html += '<button class="btn btn-outline-info btn-sm btn-bid-status me-1" data-id="' + bid.id + '">Status</button>' +
-              '<button class="btn btn-outline-danger btn-sm btn-bid-cancel" data-id="' + bid.id + '">Cancel</button>';
+          var isTomorrowActive = bid.status === 'active' && tomorrowSlotDate && String(bid.bidDate) === String(tomorrowSlotDate);
+          if (isTomorrowActive) {
+            html += '<button type="button" class="btn btn-outline-info btn-sm btn-bid-status me-1" data-id="' + bid.id + '">Status</button>' +
+              '<button type="button" class="btn btn-outline-danger btn-sm btn-bid-cancel" data-id="' + bid.id + '">Cancel</button>';
           }
           html += '</td></tr>';
         });
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
+        if (histMeta.totalPages > 1) {
+          html += '<nav class="d-flex align-items-center gap-2 mt-2" aria-label="Bid history pages">' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary btn-history-prev"' +
+            (histMeta.page <= 1 ? ' disabled' : '') + '>Previous</button>' +
+            '<span class="small text-muted">Page ' + histMeta.page + ' of ' + histMeta.totalPages + '</span>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary btn-history-next"' +
+            (histMeta.page >= histMeta.totalPages ? ' disabled' : '') + '>Next</button>' +
+            '</nav>';
+        }
       } else {
         html += '<p class="text-muted">No bids yet.</p>';
       }
@@ -568,7 +587,7 @@
         }
         bidPromise.then(function (data) {
           showMessage(data.message || 'Bid placed!', 'success');
-          renderBidding();
+          renderBidding(1);
         }).catch(function (err) { showMessage(err.message, 'danger'); });
       });
 
@@ -590,10 +609,23 @@
           if (!confirm('Cancel this bid?')) return;
           api('/api/bidding/bid/' + bidId, { method: 'DELETE' }).then(function () {
             showMessage('Bid cancelled.', 'success');
-            renderBidding();
+            renderBidding(histMeta.page);
           }).catch(function (err) { showMessage(err.message, 'danger'); });
         });
       });
+
+      var prevBtn = content.querySelector('.btn-history-prev');
+      var nextBtn = content.querySelector('.btn-history-next');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', function () {
+          if (histMeta.page > 1) renderBidding(histMeta.page - 1);
+        });
+      }
+      if (nextBtn) {
+        nextBtn.addEventListener('click', function () {
+          if (histMeta.page < histMeta.totalPages) renderBidding(histMeta.page + 1);
+        });
+      }
 
     });
   }
