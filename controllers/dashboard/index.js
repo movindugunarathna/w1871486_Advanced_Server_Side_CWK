@@ -64,7 +64,7 @@ function proxyGet(apiPath, query, callback) {
   var fullPath = apiPath + (qsStr ? '?' + qsStr : '');
 
   var options = {
-    hostname: 'localhost',
+    hostname: '127.0.0.1',
     port: BASE_PORT,
     path: fullPath,
     method: 'GET',
@@ -83,6 +83,7 @@ function proxyGet(apiPath, query, callback) {
       try {
         callback(null, JSON.parse(body), proxyRes.statusCode);
       } catch (e) {
+        console.error('[dashboard proxy] Non-JSON from', fullPath, 'HTTP', proxyRes.statusCode, body.slice(0, 400));
         callback(new Error('Invalid JSON from API'), null, proxyRes.statusCode);
       }
     });
@@ -116,7 +117,7 @@ function proxyDownload(apiPath, query, res) {
   var qsStr = qs.toString();
   var fullPath = apiPath + (qsStr ? '?' + qsStr : '');
   var options = {
-    hostname: 'localhost',
+    hostname: '127.0.0.1',
     port: BASE_PORT,
     path: fullPath,
     method: 'GET',

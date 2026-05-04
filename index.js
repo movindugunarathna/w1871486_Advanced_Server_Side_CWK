@@ -35,8 +35,13 @@ var helmetCspDirectives = Object.assign(
     ? {}
     : { 'upgrade-insecure-requests': null }
 );
+// COOP / Origin-Agent-Cluster only apply on "trustworthy" origins (HTTPS or localhost).
+// On http://<public-ip> browsers ignore them and log noise; skip sending those headers.
+var helmetHttps = String(process.env.BASE_URL || '').indexOf('https://') === 0;
 app.use(helmet({
-  contentSecurityPolicy: { directives: helmetCspDirectives }
+  contentSecurityPolicy: { directives: helmetCspDirectives },
+  crossOriginOpenerPolicy: helmetHttps,
+  originAgentCluster: helmetHttps
 }));
 app.use(cors({
   origin: env.corsOrigin,
