@@ -11,7 +11,6 @@ var PDFDocument = require('pdfkit');
 var { User, Profile } = require('../../models');
 var env = require('../../config/env');
 var emailUtil = require('../../utils/email');
-var demoAnalyticsData = require('../../analytics-dashboard-demo-data.json');
 
 exports.name = 'dashboard';
 exports.prefix = '/dashboard';
@@ -20,6 +19,18 @@ exports.router = router;
 var API_KEY = process.env.ANALYTICS_API_KEY || '';
 var BASE_PORT = process.env.PORT || 5000;
 var DASHBOARD_DEMO_MODE = String(process.env.DASHBOARD_DEMO_MODE || '').toLowerCase() === 'true';
+
+// Demo JSON is optional; only load when DASHBOARD_DEMO_MODE=true (keeps Docker images working without the file).
+var demoAnalyticsDataCache;
+function getDemoAnalyticsPayload() {
+  if (!DASHBOARD_DEMO_MODE) {
+    return null;
+  }
+  if (demoAnalyticsDataCache === undefined) {
+    demoAnalyticsDataCache = require('../../analytics-dashboard-demo-data.json');
+  }
+  return demoAnalyticsDataCache;
+}
 
 var csrfProtection = csrf({ cookie: false });
 
@@ -174,7 +185,8 @@ function proxyAnalytics(endpoint, req, res) {
 }
 
 function getDemoAnalyticsResponse(endpoint, req) {
-  var endpoints = (demoAnalyticsData && demoAnalyticsData.endpoints) ? demoAnalyticsData.endpoints : null;
+  var demoPayload = getDemoAnalyticsPayload();
+  var endpoints = (demoPayload && demoPayload.endpoints) ? demoPayload.endpoints : null;
   var payload = endpoints ? endpoints[endpoint] : null;
   var parsedLimit;
   var limitedEmployers;

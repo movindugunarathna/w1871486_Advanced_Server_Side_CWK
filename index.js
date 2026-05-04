@@ -136,8 +136,9 @@ if (!module.parent) {
       console.log('Database tables synced');
       // Start background scheduler jobs (winner selection, monthly resets).
       scheduler.start();
-      app.listen(PORT);
-      console.log('Express started on port ' + PORT);
+      app.listen(PORT, '0.0.0.0', function () {
+        console.log('Express listening on 0.0.0.0:' + PORT);
+      });
     })
     .catch(function(err) {
       console.error('Unable to connect to database:', err);

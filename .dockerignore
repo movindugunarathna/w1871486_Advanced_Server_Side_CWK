@@ -11,6 +11,5 @@ docker-compose.yml
 README.md
 implementation-plan.md
 cookies.txt
-analytics-dashboard-demo-data.json
 uploads/profiles/*
 !uploads/profiles/.gitkeep
