@@ -10,6 +10,7 @@ var { bidRules, validate } = require('../../middleware/validators');
 var { bidLimiter } = require('../../middleware/rateLimiter');
 
 var { Bid, FeaturedAlumnus, User, sequelize } = require('../../models');
+var IST_TIME_ZONE = 'Asia/Kolkata';
 
 exports.name = 'bidding';
 exports.prefix = '/api/bidding';
@@ -27,26 +28,61 @@ function toDateOnlyLocal(d) {
   return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
 
+function dateOnlyInTimeZone(date, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+}
+
+function addDaysToDateOnly(dateOnly, days) {
+  var d = new Date(dateOnly + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function timePartsInTimeZone(date, timeZone) {
+  var parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+
+  var values = {};
+  parts.forEach(function(p) {
+    if (p.type !== 'literal') values[p.type] = Number(p.value);
+  });
+  return values;
+}
+
 function getTomorrowDateOnly() {
-  var t = new Date();
-  t.setDate(t.getDate() + 1);
-  return toDateOnlyLocal(t);
+  var todayIst = dateOnlyInTimeZone(new Date(), IST_TIME_ZONE);
+  return addDaysToDateOnly(todayIst, 1);
 }
 
 function isBiddingOpenNow() {
-  // Bidding closes at 6 PM today (server local time) for tomorrow's slot.
-  var now = new Date();
-  var closing = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0);
-  return now < closing;
+  // Bidding closes at 6 PM IST today for tomorrow's slot.
+  var nowIst = timePartsInTimeZone(new Date(), IST_TIME_ZONE);
+  return nowIst.hour < 18;
 }
 
 function getMonthRange(date) {
   var d = date || new Date();
-  var first = new Date(d.getFullYear(), d.getMonth(), 1);
-  var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  var istDateOnly = dateOnlyInTimeZone(d, IST_TIME_ZONE);
+  var year = Number(istDateOnly.slice(0, 4));
+  var month = Number(istDateOnly.slice(5, 7));
+  var firstDateOnly = year + '-' + pad2(month) + '-01';
+  var nextMonthYear = month === 12 ? year + 1 : year;
+  var nextMonth = month === 12 ? 1 : month + 1;
+  var nextMonthFirstDateOnly = nextMonthYear + '-' + pad2(nextMonth) + '-01';
+  var lastDateOnly = addDaysToDateOnly(nextMonthFirstDateOnly, -1);
   return {
-    firstDateOnly: toDateOnlyLocal(first),
-    lastDateOnly: toDateOnlyLocal(last)
+    firstDateOnly: firstDateOnly,
+    lastDateOnly: lastDateOnly
   };
 }
 
@@ -313,26 +349,44 @@ router.put('/bid/:bidId', bidRules, validate, async function(req, res) {
   }
 
   try {
-    var bid = await Bid.findOne({
-      where: {
-        id: bidId,
+    var replacementBid = await sequelize.transaction(async function(t) {
+      var bid = await Bid.findOne({
+        where: {
+          id: bidId,
+          userId: userId,
+          bidDate: tomorrowDateOnly,
+          status: 'active'
+        },
+        transaction: t
+      });
+
+      if (!bid) {
+        return null;
+      }
+
+      var currentAmount = Number(bid.amount);
+      if (!(amount > currentAmount)) {
+        return false;
+      }
+
+      // Store each increase as a new bid record so total bids reflects every attempt.
+      await bid.update({ status: 'cancelled' }, { transaction: t });
+      return Bid.create({
         userId: userId,
+        amount: amount,
         bidDate: tomorrowDateOnly,
         status: 'active'
-      }
+      }, { transaction: t });
     });
 
-    if (!bid) {
+    if (replacementBid === null) {
       return res.status(404).json({ success: false, message: 'Bid not found' });
     }
-
-    var currentAmount = Number(bid.amount);
-    if (!(amount > currentAmount)) {
+    if (replacementBid === false) {
       return res.status(400).json({ success: false, message: 'You can only increase your bid.' });
     }
 
-    await bid.update({ amount: amount });
-    res.json({ success: true, message: 'Bid updated' });
+    res.json({ success: true, message: 'Bid updated', bidId: replacementBid.id });
   } catch (err) {
     console.error('Update bid error:', err);
     res.status(500).json({ success: false, message: 'Failed to update bid' });
@@ -636,7 +690,7 @@ router.get('/monthly-status', async function(req, res) {
     var maxAllowed = user.attendedEvent ? 4 : 3;
     var remainingSlots = Math.max(0, maxAllowed - winsThisMonth);
 
-    var monthName = now.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+    var monthName = now.toLocaleString('en-US', { month: 'long', timeZone: IST_TIME_ZONE });
     var monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1) + ' ' + now.getFullYear();
 
     res.json({
