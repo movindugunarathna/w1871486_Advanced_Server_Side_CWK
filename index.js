@@ -24,6 +24,7 @@ var scheduler = require('./utils/scheduler');
 var ensureDatabaseExists = require('./config/ensureDatabase');
 
 var app = module.exports = express();
+var isHttpsBaseUrl = String(process.env.BASE_URL || '').indexOf('https://') === 0;
 
 function isSslEnabled() {
   return String(process.env.SSL_ENABLED || '').toLowerCase() === 'true';
@@ -64,19 +65,21 @@ function createHttpsServer(appInstance) {
 // View engine setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+// Trust reverse proxy (Nginx/Apache) so secure cookies work in production HTTPS setups.
+app.set('trust proxy', 1);
 
 // Security middleware — omit upgrade-insecure-requests unless the public site is HTTPS.
 // Otherwise browsers block same-origin CSS/JS on http:// (they are upgraded to https:// and fail).
 var helmetCspDirectives = Object.assign(
   {},
   helmet.contentSecurityPolicy.getDefaultDirectives(),
-  (String(process.env.BASE_URL || '').indexOf('https://') === 0)
+  (isHttpsBaseUrl)
     ? {}
     : { 'upgrade-insecure-requests': null }
 );
 // COOP / Origin-Agent-Cluster only apply on "trustworthy" origins (HTTPS or localhost).
 // On http://<public-ip> browsers ignore them and log noise; skip sending those headers.
-var helmetHttps = String(process.env.BASE_URL || '').indexOf('https://') === 0;
+var helmetHttps = isHttpsBaseUrl;
 app.use(helmet({
   contentSecurityPolicy: { directives: helmetCspDirectives },
   crossOriginOpenerPolicy: helmetHttps,
@@ -113,10 +116,11 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true,
+  proxy: isHttpsBaseUrl,
   cookie: {
     maxAge: 30 * 60 * 1000, // 30 minutes
     httpOnly: true,
-    secure: String(process.env.BASE_URL || '').indexOf('https://') === 0,
+    secure: isHttpsBaseUrl,
     sameSite: 'lax'
   }
 }));
