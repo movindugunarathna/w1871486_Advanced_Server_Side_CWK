@@ -13,6 +13,30 @@
     return div.innerHTML;
   }
 
+  /** ISO 8601 UTC string → local calendar display in IST (Asia/Kolkata). */
+  function formatPlacedIST(isoString) {
+    if (!isoString) return '';
+    var d = new Date(isoString);
+    if (isNaN(d.getTime())) return escapeHtml(String(isoString));
+    var fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    var map = {};
+    fmt.formatToParts(d).forEach(function (p) {
+      if (p.type !== 'literal') map[p.type] = p.value;
+    });
+    var line = map.year + '-' + map.month + '-' + map.day + ' ' +
+      map.hour + ':' + map.minute + ':' + map.second + ' IST';
+    return escapeHtml(line);
+  }
+
   function showMessage(msg, type) {
     if (!msg) {
       messageEl.className = 'alert d-none';
@@ -536,13 +560,13 @@
       }
       if (history && history.data && history.data.length > 0) {
         html += '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
-          '<th>Slot date</th><th>Amount</th><th>Status</th><th>Placed</th><th>Actions</th></tr></thead><tbody>';
+          '<th>Slot date</th><th>Amount</th><th>Status</th><th>Placed (IST)</th><th>Actions</th></tr></thead><tbody>';
         history.data.forEach(function (bid) {
           var amt = bid.amount != null && bid.amount !== '' ? Number(bid.amount).toFixed(2) : '—';
           html += '<tr><td>' + escapeHtml(bid.bidDate) + '</td>' +
             '<td>' + escapeHtml(amt) + '</td>' +
             '<td><span class="badge bg-' + bidStatusColor(bid.status) + '">' + bid.status + '</span></td>' +
-            '<td class="small text-muted">' + escapeHtml(bid.createdAt || '') + '</td>' +
+            '<td class="small text-muted">' + formatPlacedIST(bid.createdAt) + '</td>' +
             '<td>';
           var isTomorrowActive = bid.status === 'active' && tomorrowSlotDate && String(bid.bidDate) === String(tomorrowSlotDate);
           if (isTomorrowActive) {
