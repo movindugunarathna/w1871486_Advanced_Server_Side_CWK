@@ -2,9 +2,11 @@
 
 var port = process.env.PORT || 5000;
 var isProduction = process.env.NODE_ENV === 'production';
+var sslEnabled = String(process.env.SSL_ENABLED || '').toLowerCase() === 'true';
+var protocol = sslEnabled ? 'https' : 'http';
 var defaultUrl = isProduction
-  ? 'http://143.244.140.115:' + port
-  : 'http://localhost:' + port;
+  ? protocol + '://143.244.140.115:' + port
+  : protocol + '://localhost:' + port;
 
 module.exports = {
   port: port,

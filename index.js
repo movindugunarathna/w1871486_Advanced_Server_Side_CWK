@@ -5,6 +5,9 @@ require('dotenv').config();
 var express = require('express');
 var logger = require('morgan');
 var path = require('node:path');
+var fs = require('node:fs');
+var http = require('node:http');
+var https = require('node:https');
 var session = require('express-session');
 var methodOverride = require('method-override');
 var helmet = require('helmet');
@@ -21,6 +24,42 @@ var scheduler = require('./utils/scheduler');
 var ensureDatabaseExists = require('./config/ensureDatabase');
 
 var app = module.exports = express();
+
+function isSslEnabled() {
+  return String(process.env.SSL_ENABLED || '').toLowerCase() === 'true';
+}
+
+function createHttpsServer(appInstance) {
+  if (!isSslEnabled()) {
+    return null;
+  }
+
+  var keyPath = process.env.SSL_KEY_PATH;
+  var certPath = process.env.SSL_CERT_PATH;
+  var caPath = process.env.SSL_CA_PATH;
+
+  if (!keyPath || !certPath) {
+    console.warn('[WARN] SSL_ENABLED=true but SSL_KEY_PATH or SSL_CERT_PATH is missing. Falling back to HTTP.');
+    return null;
+  }
+
+  try {
+    var sslOptions = {
+      key: fs.readFileSync(path.resolve(keyPath)),
+      cert: fs.readFileSync(path.resolve(certPath))
+    };
+
+    if (caPath) {
+      sslOptions.ca = fs.readFileSync(path.resolve(caPath));
+    }
+
+    return https.createServer(sslOptions, appInstance);
+  } catch (error) {
+    console.warn('[WARN] Failed to read SSL certificate files. Falling back to HTTP.');
+    console.warn(error.message);
+    return null;
+  }
+}
 
 // View engine setup
 app.set('view engine', 'ejs');
@@ -141,9 +180,32 @@ if (!module.parent) {
       console.log('Database tables synced');
       // Start background scheduler jobs (winner selection, monthly resets).
       scheduler.start();
-      app.listen(PORT, '0.0.0.0', function () {
-        console.log('Express listening on 0.0.0.0:' + PORT);
-      });
+      var httpsServer = createHttpsServer(app);
+
+      if (httpsServer) {
+        httpsServer.listen(PORT, '0.0.0.0', function() {
+          console.log('Express HTTPS listening on 0.0.0.0:' + PORT);
+        });
+
+        var enableHttpRedirect = String(process.env.HTTP_REDIRECT_ENABLED || '').toLowerCase() === 'true';
+        if (enableHttpRedirect) {
+          var httpPort = Number(process.env.HTTP_PORT || 8080);
+          http.createServer(function(req, res) {
+            var host = String(req.headers.host || '');
+            var hostname = host.split(':')[0] || 'localhost';
+            var targetPort = Number(PORT) === 443 ? '' : ':' + PORT;
+            var redirectUrl = 'https://' + hostname + targetPort + req.url;
+            res.writeHead(301, { Location: redirectUrl });
+            res.end();
+          }).listen(httpPort, '0.0.0.0', function() {
+            console.log('HTTP redirect server listening on 0.0.0.0:' + httpPort);
+          });
+        }
+      } else {
+        app.listen(PORT, '0.0.0.0', function () {
+          console.log('Express HTTP listening on 0.0.0.0:' + PORT);
+        });
+      }
     })
     .catch(function(err) {
       console.error('Unable to connect to database:', err);
